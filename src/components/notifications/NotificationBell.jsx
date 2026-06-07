@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import {
   Bell,
   CheckCheck,
@@ -12,8 +13,8 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import {
+  arrayUnion,
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -22,7 +23,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-import { db } from "../../firebase/config";
+import { auth, db } from "../../firebase/config";
 
 function NotificationBell() {
   const navigate = useNavigate();
@@ -30,26 +31,65 @@ function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [open, setOpen] = useState(false);
 
+  const user = auth.currentUser;
+
   useEffect(() => {
+    if (!user) return;
+
     const q = query(
       collection(db, "notifications"),
       orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((item) => ({
-        id: item.id,
-        ...item.data(),
-      }));
+      const list = snapshot.docs
+        .map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }))
+        .filter((notification) => {
+          const deletedBy = notification.deletedBy || [];
+
+          if (deletedBy.includes(user.uid)) {
+            return false;
+          }
+
+          if (
+            !notification.targetUserId &&
+            !notification.targetUserEmail
+          ) {
+            return true;
+          }
+
+          if (notification.targetUserId === user.uid) {
+            return true;
+          }
+
+          if (notification.targetUserEmail === user.email) {
+            return true;
+          }
+
+          return false;
+        });
 
       setNotifications(list);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
+
+  function isNotificationRead(notification) {
+    const readBy = notification.readBy || [];
+
+    if (readBy.includes(user?.uid)) {
+      return true;
+    }
+
+    return false;
+  }
 
   const unreadCount = notifications.filter(
-    (notification) => !notification.read
+    (notification) => !isNotificationRead(notification)
   ).length;
 
   async function markAsRead(notificationId) {
@@ -61,7 +101,7 @@ function NotificationBell() {
       );
 
       await updateDoc(notificationRef, {
-        read: true,
+        readBy: arrayUnion(user.uid),
       });
     } catch (error) {
       console.error("Erro ao marcar notificação:", error);
@@ -80,7 +120,7 @@ function NotificationBell() {
         );
 
         batch.update(notificationRef, {
-          read: true,
+          readBy: arrayUnion(user.uid),
         });
       });
 
@@ -92,7 +132,7 @@ function NotificationBell() {
 
   async function clearAllNotifications() {
     const confirmClear = window.confirm(
-      "Deseja limpar todas as notificações?"
+      "Deseja limpar todas as suas notificações?"
     );
 
     if (!confirmClear) return;
@@ -107,7 +147,9 @@ function NotificationBell() {
           notification.id
         );
 
-        batch.delete(notificationRef);
+        batch.update(notificationRef, {
+          deletedBy: arrayUnion(user.uid),
+        });
       });
 
       await batch.commit();
@@ -124,7 +166,9 @@ function NotificationBell() {
         notificationId
       );
 
-      await deleteDoc(notificationRef);
+      await updateDoc(notificationRef, {
+        deletedBy: arrayUnion(user.uid),
+      });
     } catch (error) {
       console.error("Erro ao excluir notificação:", error);
     }
@@ -135,40 +179,32 @@ function NotificationBell() {
       return notification.targetUrl;
     }
 
-    // DOCUMENTOS
     if (notification.documentId && notification.companyId) {
       return `/empresas/${notification.companyId}#document-${notification.documentId}`;
     }
 
-    // TAREFAS
     if (notification.taskId && notification.companyId) {
       return `/empresas/${notification.companyId}#task-${notification.taskId}`;
     }
 
-    // AGENDA
-    if (
-      notification.type?.startsWith("agenda")
-    ) {
+    if (notification.type?.startsWith("agenda")) {
       return "/agenda";
     }
 
-    // REGISTRO RÁPIDO
     if (notification.type === "quick-register") {
       return "/registro-rapido";
     }
 
-    // EMPRESA
     if (notification.companyId) {
       return `/empresas/${notification.companyId}`;
     }
 
-    // DASHBOARD
     return "/dashboard";
   }
 
   async function openNotification(notification) {
     try {
-      if (!notification.read) {
+      if (!isNotificationRead(notification)) {
         await markAsRead(notification.id);
       }
 
@@ -203,9 +239,7 @@ function NotificationBell() {
       return "Registro";
     }
 
-    if (
-      notification.type?.startsWith("agenda")
-    ) {
+    if (notification.type?.startsWith("agenda")) {
       return "Agenda";
     }
 
@@ -231,9 +265,7 @@ function NotificationBell() {
       return "bg-orange-100 text-orange-700";
     }
 
-    if (
-      notification.type?.startsWith("agenda")
-    ) {
+    if (notification.type?.startsWith("agenda")) {
       return "bg-blue-100 text-blue-700";
     }
 
@@ -274,9 +306,7 @@ function NotificationBell() {
       );
     }
 
-    if (
-      notification.type?.startsWith("agenda")
-    ) {
+    if (notification.type?.startsWith("agenda")) {
       return (
         <CalendarDays
           size={18}
@@ -339,7 +369,7 @@ function NotificationBell() {
                   type="button"
                   onClick={clearAllNotifications}
                   className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-lg transition"
-                  title="Limpar todas"
+                  title="Limpar minhas notificações"
                 >
                   <Trash2 size={17} />
                 </button>
@@ -354,23 +384,19 @@ function NotificationBell() {
               </p>
             ) : (
               notifications.map((notification) => {
-                const target =
-                  getNotificationTarget(notification);
+                const target = getNotificationTarget(notification);
+                const isRead = isNotificationRead(notification);
 
                 return (
                   <div
                     key={notification.id}
                     className={`p-4 border-b border-purple-50 transition ${
-                      notification.read
-                        ? "bg-white"
-                        : "bg-purple-50"
+                      isRead ? "bg-white" : "bg-purple-50"
                     }`}
                   >
                     <button
                       type="button"
-                      onClick={() =>
-                        openNotification(notification)
-                      }
+                      onClick={() => openNotification(notification)}
                       className="w-full text-left"
                     >
                       <div className="flex items-start gap-3">
@@ -403,9 +429,7 @@ function NotificationBell() {
                             {notification.createdAt?.toDate
                               ? notification.createdAt
                                   .toDate()
-                                  .toLocaleString(
-                                    "pt-BR"
-                                  )
+                                  .toLocaleString("pt-BR")
                               : ""}
                           </p>
 
@@ -419,12 +443,10 @@ function NotificationBell() {
                     </button>
 
                     <div className="flex items-center gap-4 mt-4 ml-8">
-                      {!notification.read && (
+                      {!isRead && (
                         <button
                           type="button"
-                          onClick={() =>
-                            markAsRead(notification.id)
-                          }
+                          onClick={() => markAsRead(notification.id)}
                           className="text-xs text-fuchsia-600 font-semibold"
                         >
                           Marcar como lida
@@ -433,12 +455,10 @@ function NotificationBell() {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          deleteNotification(notification.id)
-                        }
+                        onClick={() => deleteNotification(notification.id)}
                         className="text-xs text-red-600 font-semibold"
                       >
-                        Excluir
+                        Excluir só para mim
                       </button>
                     </div>
                   </div>
