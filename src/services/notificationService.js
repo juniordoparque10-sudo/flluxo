@@ -13,7 +13,11 @@ export async function createNotification({
   companyId = "",
   documentId = "",
   taskId = "",
+  agendaEventId = "",
   targetUrl = "",
+  targetUserId = "",
+  targetUserEmail = "",
+  excludeUserId = "",
 }) {
   const user = auth.currentUser;
 
@@ -21,12 +25,23 @@ export async function createNotification({
     title,
     message,
     type,
-    read: false,
-    userEmail: user?.email || "Sistema",
+
     companyId,
     documentId,
     taskId,
+    agendaEventId,
     targetUrl,
+
+    targetUserId,
+    targetUserEmail,
+    excludeUserId,
+
+    createdByUserId: user?.uid || "",
+    createdByEmail: user?.email || "Sistema",
+
+    readBy: [],
+    deletedBy: [],
+
     createdAt: serverTimestamp(),
   });
 
@@ -37,6 +52,7 @@ export async function createNotification({
     companyId,
     documentId,
     taskId,
+    agendaEventId,
     targetUrl,
   });
 }
@@ -48,6 +64,7 @@ export async function createLog({
   companyId = "",
   documentId = "",
   taskId = "",
+  agendaEventId = "",
   targetUrl = "",
 }) {
   const user = auth.currentUser;
@@ -56,12 +73,16 @@ export async function createLog({
     action,
     description,
     type,
+
     companyId,
     documentId,
     taskId,
+    agendaEventId,
     targetUrl,
+
     userEmail: user?.email || "Sistema",
     userId: user?.uid || "",
+
     createdAt: serverTimestamp(),
   });
 }

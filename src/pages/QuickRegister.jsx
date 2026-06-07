@@ -13,14 +13,14 @@ import {
 
 import {
   BellRing,
-  Search,
-  Clock3,
-  ShieldAlert,
   CheckCircle2,
+  Clock3,
+  Search,
+  ShieldAlert,
 } from "lucide-react";
 
+import { auth, db } from "../firebase/config";
 import AppLayout from "../layouts/AppLayout";
-import { db } from "../firebase/config";
 import { createNotification } from "../services/notificationService";
 
 function QuickRegister() {
@@ -28,7 +28,6 @@ function QuickRegister() {
 
   const [companies, setCompanies] = useState([]);
   const [collaborators, setCollaborators] = useState([]);
-
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +48,6 @@ function QuickRegister() {
 
   useEffect(() => {
     migrateLocalRecords();
-
     loadCompanies();
     loadCollaborators();
 
@@ -79,35 +77,25 @@ function QuickRegister() {
   }, []);
 
   async function loadCompanies() {
-    const unsubscribe = onSnapshot(
-      collection(db, "companies"),
-      (snapshot) => {
-        const list = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        }));
+    return onSnapshot(collection(db, "companies"), (snapshot) => {
+      const list = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }));
 
-        setCompanies(list);
-      }
-    );
-
-    return () => unsubscribe();
+      setCompanies(list);
+    });
   }
 
   async function loadCollaborators() {
-    const unsubscribe = onSnapshot(
-      collection(db, "users"),
-      (snapshot) => {
-        const list = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        }));
+    return onSnapshot(collection(db, "users"), (snapshot) => {
+      const list = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }));
 
-        setCollaborators(list);
-      }
-    );
-
-    return () => unsubscribe();
+      setCollaborators(list);
+    });
   }
 
   async function migrateLocalRecords() {
@@ -137,14 +125,14 @@ function QuickRegister() {
           companyName: record.companyName || "",
           relatedTo: record.relatedTo || "",
           status: record.status || "Novo",
+          targetUserId: record.targetUserId || "",
+          targetUserEmail: record.targetUserEmail || "",
           createdAt: record.createdAt || new Date().toISOString(),
           migratedFromLocalStorage: true,
         });
       }
 
       localStorage.setItem(migrationKey, "true");
-
-      console.log("Registros rápidos migrados!");
     } catch (error) {
       console.error("Erro ao migrar registros:", error);
     }
@@ -175,13 +163,29 @@ function QuickRegister() {
         (company) => String(company.id) === String(form.companyId)
       );
 
-      const companyName = selectedCompany
-        ? selectedCompany.name
-        : "";
+      const companyName = selectedCompany ? selectedCompany.name : "";
+      const currentUser = auth.currentUser;
+
+      let targetUserId = "";
+      let targetUserEmail = "";
+
+      if (form.to && form.to !== "Todos") {
+        const selectedCollaborator = collaborators.find(
+          (person) => person.id === form.to
+        );
+
+        if (selectedCollaborator) {
+          targetUserId = selectedCollaborator.id;
+          targetUserEmail = selectedCollaborator.email || "";
+        }
+      }
 
       await addDoc(collection(db, "quickRecords"), {
         ...form,
         companyName,
+        targetUserId,
+        targetUserEmail,
+        createdByUserId: currentUser?.uid || "",
         createdAt: serverTimestamp(),
       });
 
@@ -192,6 +196,9 @@ function QuickRegister() {
         }. Prioridade: ${form.priority}.`,
         type: "quick-register",
         targetUrl: "/registro-rapido",
+        targetUserId,
+        targetUserEmail,
+        excludeUserId: currentUser?.uid || "",
       });
 
       setForm({
@@ -236,6 +243,18 @@ function QuickRegister() {
       default:
         return "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200";
     }
+  }
+
+  function getPersonLabel(personIdOrText) {
+    if (!personIdOrText) return "Não informado";
+
+    if (personIdOrText === "Todos") return "Todos";
+
+    const person = collaborators.find(
+      (item) => item.id === personIdOrText
+    );
+
+    return person?.name || person?.email || personIdOrText;
   }
 
   const filteredRecords = records.filter((record) => {
@@ -300,33 +319,21 @@ function QuickRegister() {
         <DashboardCard
           icon={<ShieldAlert />}
           title="Urgentes"
-          value={
-            records.filter(
-              (item) => item.priority === "Urgente"
-            ).length
-          }
+          value={records.filter((item) => item.priority === "Urgente").length}
           color="red"
         />
 
         <DashboardCard
           icon={<Clock3 />}
           title="Novos"
-          value={
-            records.filter(
-              (item) => item.status === "Novo"
-            ).length
-          }
+          value={records.filter((item) => item.status === "Novo").length}
           color="orange"
         />
 
         <DashboardCard
           icon={<CheckCircle2 />}
           title="Lidos"
-          value={
-            records.filter(
-              (item) => item.status === "Lido"
-            ).length
-          }
+          value={records.filter((item) => item.status === "Lido").length}
           color="emerald"
         />
       </div>
@@ -382,7 +389,7 @@ function QuickRegister() {
             <option value="">Criado por</option>
 
             {collaborators.map((person) => (
-              <option key={person.id}>
+              <option key={person.id} value={person.id}>
                 {person.name || person.email}
               </option>
             ))}
@@ -395,11 +402,10 @@ function QuickRegister() {
             className="border border-purple-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
           >
             <option value="">Notificar para</option>
-
-            <option>Todos</option>
+            <option value="Todos">Todos</option>
 
             {collaborators.map((person) => (
-              <option key={person.id}>
+              <option key={person.id} value={person.id}>
                 {person.name || person.email}
               </option>
             ))}
@@ -450,12 +456,7 @@ function QuickRegister() {
 
       <div className="bg-white rounded-2xl shadow p-6 border border-purple-100">
         <div className="flex flex-wrap gap-2 mb-6">
-          {[
-            "Todos",
-            "Novos",
-            "Lidos",
-            "Urgentes",
-          ].map((option) => (
+          {["Todos", "Novos", "Lidos", "Urgentes"].map((option) => (
             <button
               key={option}
               type="button"
@@ -514,11 +515,11 @@ function QuickRegister() {
                       </span>
 
                       <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-                        De: {record.from || "Não informado"}
+                        De: {getPersonLabel(record.from)}
                       </span>
 
                       <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-                        Para: {record.to || "Não informado"}
+                        Para: {getPersonLabel(record.to)}
                       </span>
 
                       {record.companyName && (
