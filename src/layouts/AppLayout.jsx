@@ -144,7 +144,7 @@ function AppLayout({ children }) {
   }
 
   const menuClass = (path) =>
-    `flex items-center gap-3 p-3 rounded-xl transition ${
+    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
       isActive(path)
         ? "bg-fuchsia-600 text-white shadow-lg"
         : "text-slate-200 hover:bg-fuchsia-600/20 hover:text-white"
@@ -164,20 +164,18 @@ function AppLayout({ children }) {
       )}
 
       <aside
-        className={`fixed lg:relative z-50 lg:z-auto top-0 left-0 h-screen w-72 bg-[#1b1028] text-white p-6 shadow-2xl flex flex-col transition-transform duration-300 ${
+        className={`fixed lg:sticky z-50 lg:z-auto top-0 left-0 h-screen max-h-screen w-72 bg-[#1b1028] text-white px-5 py-5 shadow-2xl flex flex-col transition-transform duration-300 overflow-hidden ${
           mobileMenuOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <img
-              src={logoFlluxo}
-              alt="Flluxo"
-              className="w-52 object-contain"
-            />
-          </div>
+        <div className="flex items-center justify-between shrink-0 mb-5">
+          <img
+            src={logoFlluxo}
+            alt="Flluxo"
+            className="w-40 max-h-24 object-contain"
+          />
 
           <button
             type="button"
@@ -188,7 +186,7 @@ function AppLayout({ children }) {
           </button>
         </div>
 
-        <nav className="space-y-3 flex-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {loadingProfile ? (
             <p className="text-slate-400 text-sm px-3">
               Carregando permissões...
@@ -201,7 +199,7 @@ function AppLayout({ children }) {
                   className={menuClass("/dashboard")}
                   onClick={closeMobileMenu}
                 >
-                  <Home size={20} />
+                  <Home size={18} />
                   Dashboard
                 </Link>
               )}
@@ -212,7 +210,7 @@ function AppLayout({ children }) {
                   className={menuClass("/pesquisa")}
                   onClick={closeMobileMenu}
                 >
-                  <FileSearch size={20} />
+                  <FileSearch size={18} />
                   Pesquisa Global
                 </Link>
               )}
@@ -223,7 +221,7 @@ function AppLayout({ children }) {
                   className={menuClass("/empresas")}
                   onClick={closeMobileMenu}
                 >
-                  <Building2 size={20} />
+                  <Building2 size={18} />
                   Empresas
                 </Link>
               )}
@@ -234,7 +232,7 @@ function AppLayout({ children }) {
                   className={menuClass("/documentos")}
                   onClick={closeMobileMenu}
                 >
-                  <FileText size={20} />
+                  <FileText size={18} />
                   Documentos
                 </Link>
               )}
@@ -245,7 +243,7 @@ function AppLayout({ children }) {
                   className={menuClass("/agenda")}
                   onClick={closeMobileMenu}
                 >
-                  <CalendarDays size={20} />
+                  <CalendarDays size={18} />
                   Agenda
                 </Link>
               )}
@@ -256,7 +254,7 @@ function AppLayout({ children }) {
                   className={menuClass("/tarefas")}
                   onClick={closeMobileMenu}
                 >
-                  <CheckSquare size={20} />
+                  <CheckSquare size={18} />
                   Tarefas
                 </Link>
               )}
@@ -267,7 +265,7 @@ function AppLayout({ children }) {
                   className={menuClass("/registro-rapido")}
                   onClick={closeMobileMenu}
                 >
-                  <BellRing size={20} />
+                  <BellRing size={18} />
                   Registro Rápido
                 </Link>
               )}
@@ -278,7 +276,7 @@ function AppLayout({ children }) {
                   className={menuClass("/colaboradores")}
                   onClick={closeMobileMenu}
                 >
-                  <Users size={20} />
+                  <Users size={18} />
                   Colaboradores
                 </Link>
               )}
@@ -289,7 +287,7 @@ function AppLayout({ children }) {
                   className={menuClass("/logs")}
                   onClick={closeMobileMenu}
                 >
-                  <Activity size={20} />
+                  <Activity size={18} />
                   Logs de Atividades
                 </Link>
               )}
@@ -300,7 +298,7 @@ function AppLayout({ children }) {
                   className={menuClass("/gestao-acessos")}
                   onClick={closeMobileMenu}
                 >
-                  <ShieldCheck size={20} />
+                  <ShieldCheck size={18} />
                   Gestão de Acessos
                 </Link>
               )}
