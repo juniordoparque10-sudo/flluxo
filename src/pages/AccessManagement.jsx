@@ -8,8 +8,9 @@ import {
 } from "firebase/firestore";
 
 import {
-  ShieldCheck,
   Save,
+  ShieldCheck,
+  UserCircle2,
 } from "lucide-react";
 
 import AppLayout from "../layouts/AppLayout";
@@ -104,6 +105,8 @@ function AccessManagement() {
             collaboratorEdit: true,
             collaboratorDelete: true,
 
+            globalSearch: true,
+            activityLogs: true,
             accessManagement: true,
           },
         });
@@ -122,6 +125,11 @@ function AccessManagement() {
           key: "dashboard",
           label: "Dashboard",
           description: "Acessar painel inicial",
+        },
+        {
+          key: "globalSearch",
+          label: "Pesquisa global",
+          description: "Pesquisar em todo o sistema",
         },
         {
           key: "companies",
@@ -152,6 +160,11 @@ function AccessManagement() {
           key: "collaborators",
           label: "Colaboradores",
           description: "Acessar equipe operacional",
+        },
+        {
+          key: "activityLogs",
+          label: "Logs de atividades",
+          description: "Visualizar auditoria do sistema",
         },
         {
           key: "accessManagement",
@@ -262,6 +275,30 @@ function AccessManagement() {
     },
   ];
 
+  function getUserGradient(index) {
+    const gradients = [
+      "from-fuchsia-500 to-purple-500",
+      "from-cyan-500 to-blue-500",
+      "from-emerald-500 to-green-500",
+      "from-orange-500 to-red-500",
+      "from-violet-500 to-indigo-500",
+    ];
+
+    return gradients[index % gradients.length];
+  }
+
+  function getUserBackground(index) {
+    const backgrounds = [
+      "bg-fuchsia-50",
+      "bg-cyan-50",
+      "bg-emerald-50",
+      "bg-orange-50",
+      "bg-violet-50",
+    ];
+
+    return backgrounds[index % backgrounds.length];
+  }
+
   return (
     <AppLayout>
       <div className="flex items-center gap-3 mb-8">
@@ -290,123 +327,156 @@ function AccessManagement() {
             Nenhum usuário encontrado.
           </p>
         ) : (
-          <div className="space-y-6">
-            {users.map((user) => (
+          <div className="space-y-8">
+            {users.map((user, index) => (
               <div
                 key={user.id}
-                className="border border-purple-100 rounded-2xl p-6"
+                className={`rounded-3xl p-[2px] shadow-lg bg-gradient-to-r ${getUserGradient(
+                  index
+                )}`}
               >
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-[#1b1028]">
-                      {user.name || "Usuário"}
-                    </h2>
+                <div className="bg-white rounded-3xl overflow-hidden">
+                  <div
+                    className={`p-6 border-b border-purple-100 ${getUserBackground(
+                      index
+                    )}`}
+                  >
+                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+                      <div className="flex items-center gap-4">
+                        {user.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt="Avatar"
+                            className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow">
+                            <UserCircle2
+                              size={34}
+                              className="text-fuchsia-600"
+                            />
+                          </div>
+                        )}
 
-                    <p className="text-slate-600 text-sm mt-1">
-                      {user.email}
-                    </p>
-                  </div>
+                        <div>
+                          <h2 className="text-2xl font-bold text-[#1b1028]">
+                            {user.name || "Usuário"}
+                          </h2>
 
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={user.role || "collaborator"}
-                      onChange={(e) =>
-                        changeRole(
-                          user.id,
-                          e.target.value
-                        )
-                      }
-                      className="border border-purple-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
-                    >
-                      <option value="admin">
-                        Administrador
-                      </option>
+                          <p className="text-slate-600 text-sm mt-1 break-all">
+                            {user.email}
+                          </p>
 
-                      <option value="collaborator">
-                        Colaborador
-                      </option>
-                    </select>
+                          <div className="flex items-center gap-2 mt-3 flex-wrap">
+                            <span
+                              className={`px-4 py-1 rounded-full text-xs font-bold ${
+                                user.role === "admin"
+                                  ? "bg-fuchsia-600 text-white"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {user.role === "admin"
+                                ? "Administrador"
+                                : "Colaborador"}
+                            </span>
 
-                    <div
-                      className={`px-4 py-2 rounded-full text-sm font-bold ${
-                        user.role === "admin"
-                          ? "bg-fuchsia-100 text-fuchsia-700"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {user.role === "admin"
-                        ? "Administrador"
-                        : "Colaborador"}
+                            <span className="px-4 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-purple-100">
+                              Usuário #{index + 1}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <select
+                          value={user.role || "collaborator"}
+                          onChange={(e) =>
+                            changeRole(
+                              user.id,
+                              e.target.value
+                            )
+                          }
+                          className="bg-white border border-purple-200 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
+                        >
+                          <option value="admin">
+                            Administrador
+                          </option>
+
+                          <option value="collaborator">
+                            Colaborador
+                          </option>
+                        </select>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-8">
-                  {permissionsGroups.map((group) => (
-                    <div key={group.title}>
-                      <h3 className="text-lg font-bold text-[#1b1028] mb-4">
-                        {group.title}
-                      </h3>
+                  <div className="p-6 space-y-8">
+                    {permissionsGroups.map((group) => (
+                      <div key={group.title}>
+                        <h3 className="text-lg font-bold text-[#1b1028] mb-4">
+                          {group.title}
+                        </h3>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {group.permissions.map((permission) => (
-                          <div
-                            key={permission.key}
-                            className="border border-purple-100 rounded-xl p-4 flex items-center justify-between gap-4"
-                          >
-                            <div>
-                              <p className="font-semibold text-[#1b1028]">
-                                {permission.label}
-                              </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                          {group.permissions.map((permission) => (
+                            <div
+                              key={permission.key}
+                              className="border border-purple-100 rounded-2xl p-4 flex items-center justify-between gap-4 hover:shadow-md transition"
+                            >
+                              <div>
+                                <p className="font-semibold text-[#1b1028]">
+                                  {permission.label}
+                                </p>
 
-                              <p className="text-xs text-slate-500 mt-1">
-                                {permission.description}
-                              </p>
-                            </div>
+                                <p className="text-xs text-slate-500 mt-1">
+                                  {permission.description}
+                                </p>
+                              </div>
 
-                            <button
-                              type="button"
-                              disabled={user.role === "admin"}
-                              onClick={() =>
-                                togglePermission(
-                                  user.id,
-                                  permission.key,
+                              <button
+                                type="button"
+                                disabled={user.role === "admin"}
+                                onClick={() =>
+                                  togglePermission(
+                                    user.id,
+                                    permission.key,
+                                    user.permissions?.[
+                                      permission.key
+                                    ]
+                                  )
+                                }
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${
                                   user.permissions?.[
                                     permission.key
                                   ]
-                                )
-                              }
-                              className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
-                                user.permissions?.[
+                                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                } ${
+                                  user.role === "admin"
+                                    ? "opacity-60 cursor-not-allowed"
+                                    : ""
+                                }`}
+                              >
+                                {user.permissions?.[
                                   permission.key
                                 ]
-                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              } ${
-                                user.role === "admin"
-                                  ? "opacity-60 cursor-not-allowed"
-                                  : ""
-                              }`}
-                            >
-                              {user.permissions?.[
-                                permission.key
-                              ]
-                                ? "Permitido"
-                                : "Bloqueado"}
-                            </button>
-                          </div>
-                        ))}
+                                  ? "Permitido"
+                                  : "Bloqueado"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    ))}
+
+                    <div className="flex items-center gap-2 text-emerald-600">
+                      <Save size={18} />
+
+                      <p className="text-sm font-medium">
+                        Alterações salvas automaticamente
+                      </p>
                     </div>
-                  ))}
-                </div>
-
-                <div className="mt-6 flex items-center gap-2 text-emerald-600">
-                  <Save size={18} />
-
-                  <p className="text-sm font-medium">
-                    Alterações salvas automaticamente
-                  </p>
+                  </div>
                 </div>
               </div>
             ))}

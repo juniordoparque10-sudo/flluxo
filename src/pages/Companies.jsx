@@ -21,10 +21,10 @@ import { Link } from "react-router-dom";
 
 import {
   Building2,
+  Camera,
   Edit,
   Trash2,
   X,
-  Camera,
 } from "lucide-react";
 
 import AppLayout from "../layouts/AppLayout";
@@ -49,6 +49,9 @@ function Companies() {
   const [userPermissions, setUserPermissions] =
     useState({});
 
+  const [userRole, setUserRole] =
+    useState("");
+
   const [form, setForm] = useState({
     name: "",
     cnpj: "",
@@ -66,8 +69,14 @@ function Companies() {
       doc(db, "users", user.uid),
       (snapshot) => {
         if (snapshot.exists()) {
+          const data = snapshot.data();
+
           setUserPermissions(
-            snapshot.data().permissions || {}
+            data.permissions || {}
+          );
+
+          setUserRole(
+            data.role || ""
           );
         }
       }
@@ -75,6 +84,21 @@ function Companies() {
 
     return () => unsubscribeUser();
   }, []);
+
+  const isAdmin =
+    userRole === "admin";
+
+  const canCreateCompany =
+    isAdmin ||
+    userPermissions?.companyCreate === true;
+
+  const canEditCompany =
+    isAdmin ||
+    userPermissions?.companyEdit === true;
+
+  const canDeleteCompany =
+    isAdmin ||
+    userPermissions?.companyDelete === true;
 
   useEffect(() => {
     migrateLocalCompanies();
@@ -216,7 +240,7 @@ function Companies() {
   }
 
   function handleEdit(company) {
-    if (!userPermissions?.companyEdit) {
+    if (!canEditCompany) {
       alert(
         "Você não possui permissão para editar empresas."
       );
@@ -255,7 +279,7 @@ function Companies() {
       setSaving(true);
 
       if (editingCompanyId) {
-        if (!userPermissions?.companyEdit) {
+        if (!canEditCompany) {
           alert(
             "Você não possui permissão para editar empresas."
           );
@@ -289,7 +313,7 @@ function Companies() {
         return;
       }
 
-      if (!userPermissions?.companyCreate) {
+      if (!canCreateCompany) {
         alert(
           "Você não possui permissão para cadastrar empresas."
         );
@@ -324,7 +348,7 @@ function Companies() {
     companyId,
     companyName
   ) {
-    if (!userPermissions?.companyDelete) {
+    if (!canDeleteCompany) {
       alert(
         "Você não possui permissão para apagar empresas."
       );
@@ -595,7 +619,7 @@ function Companies() {
                       Abrir empresa
                     </Link>
 
-                    {userPermissions?.companyEdit && (
+                    {canEditCompany && (
                       <button
                         type="button"
                         onClick={() =>
@@ -610,7 +634,7 @@ function Companies() {
                       </button>
                     )}
 
-                    {userPermissions?.companyDelete && (
+                    {canDeleteCompany && (
                       <button
                         type="button"
                         onClick={() =>
