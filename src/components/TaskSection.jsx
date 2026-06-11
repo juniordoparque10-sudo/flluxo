@@ -33,9 +33,11 @@ function TaskSection({ companyId, highlightedItem }) {
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [permissions, setPermissions] = useState({});
   const [userRole, setUserRole] = useState("collaborator");
+  const [collaborators, setCollaborators] = useState([]);
 
   const [form, setForm] = useState({
     title: "",
+    responsibleUserId: "",
     responsible: "",
     dueDate: "",
     priority: "Média",
@@ -76,6 +78,21 @@ function TaskSection({ companyId, highlightedItem }) {
     }
 
     loadPermissions();
+  }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, "users"), orderBy("email", "asc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }));
+
+      setCollaborators(list);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -150,6 +167,7 @@ function TaskSection({ companyId, highlightedItem }) {
         await addDoc(collection(db, "companies", companyId, "tasks"), {
           title: task.title || "",
           responsible: task.responsible || "",
+          responsibleUserId: task.responsibleUserId || "",
           dueDate: task.dueDate || "",
           priority: task.priority || "Média",
           status: task.status || "Pendente",
@@ -183,15 +201,34 @@ function TaskSection({ companyId, highlightedItem }) {
   });
 
   function handleChange(e) {
+    const { name, value } = e.target;
+
+    if (name === "responsibleUserId") {
+      const selectedCollaborator = collaborators.find(
+        (person) => person.id === value
+      );
+
+      setForm({
+        ...form,
+        responsibleUserId: value,
+        responsible: selectedCollaborator
+          ? selectedCollaborator.name || selectedCollaborator.email
+          : "",
+      });
+
+      return;
+    }
+
     setForm({
       ...form,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
   }
 
   function resetForm() {
     setForm({
       title: "",
+      responsibleUserId: "",
       responsible: "",
       dueDate: "",
       priority: "Média",
@@ -216,6 +253,7 @@ function TaskSection({ companyId, highlightedItem }) {
 
     setForm({
       title: task.title || "",
+      responsibleUserId: task.responsibleUserId || "",
       responsible: task.responsible || "",
       dueDate: task.dueDate || "",
       priority: task.priority || "Média",
@@ -249,6 +287,10 @@ function TaskSection({ companyId, highlightedItem }) {
     try {
       setSaving(true);
 
+      const selectedCollaborator = collaborators.find(
+        (person) => person.id === form.responsibleUserId
+      );
+
       if (editingTaskId) {
         const taskRef = doc(
           db,
@@ -263,30 +305,59 @@ function TaskSection({ companyId, highlightedItem }) {
           updatedAt: serverTimestamp(),
         });
 
-        await createNotification({
-          title: "Tarefa atualizada",
-          message: `${form.title} em ${companyName} foi atualizada.`,
-          type: "task-status",
-          companyId,
-          taskId: editingTaskId,
-          targetUrl: `/empresas/${companyId}#task-${editingTaskId}`,
-        });
+        if (selectedCollaborator) {
+          await createNotification({
+            title: "Tarefa encaminhada para você",
+            message: `${form.title} foi encaminhada para você em ${companyName}.`,
+            type: "task-status",
+            companyId,
+            taskId: editingTaskId,
+            targetUrl: `/empresas/${companyId}#task-${editingTaskId}`,
+            targetUserId: selectedCollaborator.id,
+            targetUserEmail: selectedCollaborator.email || "",
+            excludeUserId: auth.currentUser?.uid || "",
+          });
+        } else {
+          await createNotification({
+            title: "Tarefa atualizada",
+            message: `${form.title} em ${companyName} foi atualizada.`,
+            type: "task-status",
+            companyId,
+            taskId: editingTaskId,
+            targetUrl: `/empresas/${companyId}#task-${editingTaskId}`,
+            excludeUserId: auth.currentUser?.uid || "",
+          });
+        }
 
         resetForm();
         alert("Tarefa atualizada com sucesso!");
         return;
       }
 
+      const followers = [];
+
+      if (auth.currentUser?.uid) {
+        followers.push(auth.currentUser.uid);
+      }
+
+      if (selectedCollaborator?.id) {
+        followers.push(selectedCollaborator.id);
+      }
+
       const taskRef = await addDoc(
         collection(db, "companies", companyId, "tasks"),
         {
           ...form,
-          followers: auth.currentUser?.uid ? [auth.currentUser.uid] : [],
+          followers: [...new Set(followers)],
           createdByUserId: auth.currentUser?.uid || "",
           createdByEmail: auth.currentUser?.email || "",
           history: [
             {
-              description: "criou esta tarefa",
+              description: selectedCollaborator
+                ? `criou esta tarefa e encaminhou para ${
+                    selectedCollaborator.name || selectedCollaborator.email
+                  }`
+                : "criou esta tarefa",
               userId: auth.currentUser?.uid || "",
               userEmail: auth.currentUser?.email || "Sistema",
               createdAt: new Date().toISOString(),
@@ -296,15 +367,29 @@ function TaskSection({ companyId, highlightedItem }) {
         }
       );
 
-      await createNotification({
-        title: "Nova tarefa criada",
-        message: `${form.title} foi criada em ${companyName}.`,
-        type: "task",
-        companyId,
-        taskId: taskRef.id,
-        targetUrl: `/empresas/${companyId}#task-${taskRef.id}`,
-        excludeUserId: auth.currentUser?.uid || "",
-      });
+      if (selectedCollaborator) {
+        await createNotification({
+          title: "Nova tarefa para você",
+          message: `${form.title} foi criada e encaminhada para você em ${companyName}.`,
+          type: "task",
+          companyId,
+          taskId: taskRef.id,
+          targetUrl: `/empresas/${companyId}#task-${taskRef.id}`,
+          targetUserId: selectedCollaborator.id,
+          targetUserEmail: selectedCollaborator.email || "",
+          excludeUserId: auth.currentUser?.uid || "",
+        });
+      } else {
+        await createNotification({
+          title: "Nova tarefa criada",
+          message: `${form.title} foi criada em ${companyName}.`,
+          type: "task",
+          companyId,
+          taskId: taskRef.id,
+          targetUrl: `/empresas/${companyId}#task-${taskRef.id}`,
+          excludeUserId: auth.currentUser?.uid || "",
+        });
+      }
 
       resetForm();
       alert("Tarefa cadastrada com sucesso!");
@@ -346,6 +431,7 @@ function TaskSection({ companyId, highlightedItem }) {
         companyId,
         taskId,
         targetUrl: `/empresas/${companyId}#task-${taskId}`,
+        excludeUserId: auth.currentUser?.uid || "",
       });
     } catch (error) {
       console.error("Erro ao atualizar tarefa:", error);
@@ -377,6 +463,7 @@ function TaskSection({ companyId, highlightedItem }) {
         companyId,
         taskId: task.id,
         targetUrl: `/empresas/${companyId}`,
+        excludeUserId: auth.currentUser?.uid || "",
       });
 
       alert("Tarefa apagada com sucesso!");
@@ -428,12 +515,12 @@ function TaskSection({ companyId, highlightedItem }) {
           )}
         </div>
 
-        {(canCreateTask || editingTaskId) ? (
+        {canCreateTask || editingTaskId ? (
           <form
             onSubmit={handleSubmit}
-            className="grid grid-cols-1 md:grid-cols-5 gap-5 mb-8"
+            className="grid grid-cols-1 md:grid-cols-6 gap-5 mb-8"
           >
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 text-sm font-medium text-slate-700">
                 Tarefa
               </label>
@@ -446,6 +533,27 @@ function TaskSection({ companyId, highlightedItem }) {
                 className="w-full border border-purple-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
                 placeholder="Ex: Enviar boleto"
               />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm font-medium text-slate-700">
+                Encaminhar
+              </label>
+
+              <select
+                name="responsibleUserId"
+                value={form.responsibleUserId}
+                onChange={handleChange}
+                className="w-full border border-purple-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
+              >
+                <option value="">Sem responsável</option>
+
+                {collaborators.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name || person.email}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -507,11 +615,12 @@ function TaskSection({ companyId, highlightedItem }) {
               >
                 <option>Pendente</option>
                 <option>Em andamento</option>
+                <option>Revisão</option>
                 <option>Concluída</option>
               </select>
             </div>
 
-            <div className="md:col-span-5 flex items-center gap-3">
+            <div className="md:col-span-6 flex items-center gap-3">
               <button
                 type="submit"
                 disabled={saving}
