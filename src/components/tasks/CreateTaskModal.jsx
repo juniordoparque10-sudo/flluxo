@@ -1,38 +1,77 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { X, Save } from "lucide-react";
 
 import {
   addDoc,
   collection,
+  onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
 } from "firebase/firestore";
 
 import { auth, db } from "../../firebase/config";
 import { createNotification } from "../../services/notificationService";
 
-function CreateTaskModal({
-  open,
-  onClose,
-  companies,
-}) {
+function CreateTaskModal({ open, onClose, companies }) {
   const [saving, setSaving] = useState(false);
+  const [collaborators, setCollaborators] = useState([]);
 
   const [form, setForm] = useState({
     companyId: "",
     title: "",
+    responsibleUserId: "",
     responsible: "",
     dueDate: "",
     priority: "Média",
     status: "Pendente",
   });
 
+  useEffect(() => {
+    if (!open) return;
+
+    const q = query(
+      collection(db, "users"),
+      orderBy("email", "asc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }));
+
+      setCollaborators(list);
+    });
+
+    return () => unsubscribe();
+  }, [open]);
+
   if (!open) return null;
 
   function handleChange(e) {
+    const { name, value } = e.target;
+
+    if (name === "responsibleUserId") {
+      const selected = collaborators.find(
+        (person) => person.id === value
+      );
+
+      setForm({
+        ...form,
+        responsibleUserId: value,
+        responsible: selected
+          ? selected.name || selected.email
+          : "",
+      });
+
+      return;
+    }
+
     setForm({
       ...form,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
   }
 
@@ -40,6 +79,7 @@ function CreateTaskModal({
     setForm({
       companyId: "",
       title: "",
+      responsibleUserId: "",
       responsible: "",
       dueDate: "",
       priority: "Média",
@@ -69,33 +109,45 @@ function CreateTaskModal({
       return;
     }
 
+    const selectedCollaborator = collaborators.find(
+      (person) => person.id === form.responsibleUserId
+    );
+
     try {
       setSaving(true);
 
+      const followers = [];
+
+      if (auth.currentUser?.uid) {
+        followers.push(auth.currentUser.uid);
+      }
+
+      if (selectedCollaborator?.id) {
+        followers.push(selectedCollaborator.id);
+      }
+
       const taskRef = await addDoc(
-        collection(
-          db,
-          "companies",
-          form.companyId,
-          "tasks"
-        ),
+        collection(db, "companies", form.companyId, "tasks"),
         {
           title: form.title,
           responsible: form.responsible,
+          responsibleUserId: form.responsibleUserId,
           dueDate: form.dueDate,
           priority: form.priority,
           status: form.status,
 
-          followers: auth.currentUser?.uid
-            ? [auth.currentUser.uid]
-            : [],
+          followers: [...new Set(followers)],
 
           createdByUserId: auth.currentUser?.uid || "",
           createdByEmail: auth.currentUser?.email || "",
 
           history: [
             {
-              description: "criou esta tarefa pela Central de Tarefas",
+              description: selectedCollaborator
+                ? `criou esta tarefa e encaminhou para ${
+                    selectedCollaborator.name || selectedCollaborator.email
+                  }`
+                : "criou esta tarefa pela Central de Tarefas",
               userId: auth.currentUser?.uid || "",
               userEmail: auth.currentUser?.email || "Sistema",
               createdAt: new Date().toISOString(),
@@ -106,15 +158,29 @@ function CreateTaskModal({
         }
       );
 
-      await createNotification({
-        title: "Nova tarefa criada",
-        message: `${form.title} foi criada em ${company.name}.`,
-        type: "task",
-        companyId: form.companyId,
-        taskId: taskRef.id,
-        targetUrl: `/empresas/${form.companyId}#task-${taskRef.id}`,
-        excludeUserId: auth.currentUser?.uid || "",
-      });
+      if (selectedCollaborator) {
+        await createNotification({
+          title: "Nova tarefa para você",
+          message: `${form.title} foi criada e encaminhada para você em ${company.name}.`,
+          type: "task",
+          companyId: form.companyId,
+          taskId: taskRef.id,
+          targetUrl: `/empresas/${form.companyId}#task-${taskRef.id}`,
+          targetUserId: selectedCollaborator.id,
+          targetUserEmail: selectedCollaborator.email || "",
+          excludeUserId: auth.currentUser?.uid || "",
+        });
+      } else {
+        await createNotification({
+          title: "Nova tarefa criada",
+          message: `${form.title} foi criada em ${company.name}.`,
+          type: "task",
+          companyId: form.companyId,
+          taskId: taskRef.id,
+          targetUrl: `/empresas/${form.companyId}#task-${taskRef.id}`,
+          excludeUserId: auth.currentUser?.uid || "",
+        });
+      }
 
       resetForm();
       onClose();
@@ -138,7 +204,7 @@ function CreateTaskModal({
             </h2>
 
             <p className="text-sm text-slate-500 mt-1">
-              Escolha a empresa e defina os dados da tarefa.
+              Escolha a empresa e encaminhe para um colaborador, se desejar.
             </p>
           </div>
 
@@ -169,10 +235,7 @@ function CreateTaskModal({
               <option value="">Selecione a empresa</option>
 
               {companies.map((company) => (
-                <option
-                  key={company.id}
-                  value={company.id}
-                >
+                <option key={company.id} value={company.id}>
                   {company.name}
                 </option>
               ))}
@@ -192,6 +255,27 @@ function CreateTaskModal({
               className="w-full border border-purple-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
               placeholder="Ex: Enviar documentação"
             />
+          </div>
+
+          <div>
+            <label className="block mb-2 text-sm font-medium text-slate-700">
+              Encaminhar para colaborador
+            </label>
+
+            <select
+              name="responsibleUserId"
+              value={form.responsibleUserId}
+              onChange={handleChange}
+              className="w-full border border-purple-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
+            >
+              <option value="">Sem responsável definido</option>
+
+              {collaborators.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name || person.email}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -240,7 +324,7 @@ function CreateTaskModal({
             </select>
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <label className="block mb-2 text-sm font-medium text-slate-700">
               Status
             </label>
