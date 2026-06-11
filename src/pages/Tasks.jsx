@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   LayoutGrid,
   List,
+  Plus,
 } from "lucide-react";
 
 import {
@@ -20,11 +21,11 @@ import {
 } from "firebase/firestore";
 
 import AppLayout from "../layouts/AppLayout";
-
 import { db } from "../firebase/config";
 
 import TaskModal from "../components/tasks/TaskModal";
 import KanbanBoard from "../components/tasks/KanbanBoard";
+import CreateTaskModal from "../components/tasks/CreateTaskModal";
 
 function Tasks() {
   const [search, setSearch] = useState("");
@@ -36,6 +37,7 @@ function Tasks() {
 
   const [selectedTask, setSelectedTask] = useState(null);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
 
   useEffect(() => {
     const companiesQuery = query(
@@ -45,56 +47,53 @@ function Tasks() {
 
     const taskUnsubscribes = [];
 
-    const unsubscribeCompanies = onSnapshot(
-      companiesQuery,
-      (snapshot) => {
-        const companyList = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        }));
+    const unsubscribeCompanies = onSnapshot(companiesQuery, (snapshot) => {
+      const companyList = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }));
 
-        setCompanies(companyList);
-        setLoading(false);
+      setCompanies(companyList);
+      setLoading(false);
 
-        taskUnsubscribes.forEach((unsubscribe) => unsubscribe());
-        taskUnsubscribes.length = 0;
+      taskUnsubscribes.forEach((unsubscribe) => unsubscribe());
+      taskUnsubscribes.length = 0;
 
-        companyList.forEach((company) => {
-          const tasksQuery = query(
-            collection(db, "companies", company.id, "tasks"),
-            orderBy("createdAt", "asc")
-          );
+      companyList.forEach((company) => {
+        const tasksQuery = query(
+          collection(db, "companies", company.id, "tasks"),
+          orderBy("createdAt", "asc")
+        );
 
-          const unsubscribeTasks = onSnapshot(tasksQuery, (taskSnapshot) => {
-            const tasks = taskSnapshot.docs.map((item) => ({
-              id: item.id,
-              ...item.data(),
-              companyId: company.id,
-              companyName: company.name,
-            }));
+        const unsubscribeTasks = onSnapshot(tasksQuery, (taskSnapshot) => {
+          const tasks = taskSnapshot.docs.map((item) => ({
+            id: item.id,
+            ...item.data(),
+            companyId: company.id,
+            companyName: company.name,
+          }));
 
-            setCompanyTasks((prev) => ({
-              ...prev,
-              [company.id]: tasks,
-            }));
+          setCompanyTasks((prev) => ({
+            ...prev,
+            [company.id]: tasks,
+          }));
 
-            setSelectedTask((current) => {
-              if (!current) return current;
+          setSelectedTask((current) => {
+            if (!current) return current;
 
-              const updatedTask = tasks.find(
-                (task) =>
-                  task.id === current.id &&
-                  company.id === current.companyId
-              );
+            const updatedTask = tasks.find(
+              (task) =>
+                task.id === current.id &&
+                company.id === current.companyId
+            );
 
-              return updatedTask || current;
-            });
+            return updatedTask || current;
           });
-
-          taskUnsubscribes.push(unsubscribeTasks);
         });
-      }
-    );
+
+        taskUnsubscribes.push(unsubscribeTasks);
+      });
+    });
 
     return () => {
       unsubscribeCompanies();
@@ -152,30 +151,41 @@ function Tasks() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
           <button
             type="button"
-            onClick={() => setViewMode("lista")}
-            className={`p-3 rounded-xl border transition ${
-              viewMode === "lista"
-                ? "bg-fuchsia-600 text-white border-fuchsia-600"
-                : "bg-white border-purple-100"
-            }`}
+            onClick={() => setCreateTaskOpen(true)}
+            className="flex items-center justify-center gap-2 bg-fuchsia-600 hover:bg-fuchsia-700 text-white px-5 py-3 rounded-xl font-semibold shadow transition"
           >
-            <List size={18} />
+            <Plus size={18} />
+            Nova Tarefa
           </button>
 
-          <button
-            type="button"
-            onClick={() => setViewMode("kanban")}
-            className={`p-3 rounded-xl border transition ${
-              viewMode === "kanban"
-                ? "bg-fuchsia-600 text-white border-fuchsia-600"
-                : "bg-white border-purple-100"
-            }`}
-          >
-            <LayoutGrid size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMode("lista")}
+              className={`p-3 rounded-xl border transition ${
+                viewMode === "lista"
+                  ? "bg-fuchsia-600 text-white border-fuchsia-600"
+                  : "bg-white border-purple-100"
+              }`}
+            >
+              <List size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("kanban")}
+              className={`p-3 rounded-xl border transition ${
+                viewMode === "kanban"
+                  ? "bg-fuchsia-600 text-white border-fuchsia-600"
+                  : "bg-white border-purple-100"
+              }`}
+            >
+              <LayoutGrid size={18} />
+            </button>
+          </div>
 
           <div className="relative w-full xl:w-96">
             <Search
@@ -197,21 +207,12 @@ function Tasks() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-5 mt-8">
-        <Card
-          icon={<CheckSquare />}
-          title="Total"
-          value={allTasks.length}
-        />
+        <Card icon={<CheckSquare />} title="Total" value={allTasks.length} />
 
         <Card
           icon={<Clock3 />}
           title="Pendentes"
-          value={
-            allTasks.filter(
-              (task) =>
-                task.status === "Pendente"
-            ).length
-          }
+          value={allTasks.filter((task) => task.status === "Pendente").length}
           color="fuchsia"
         />
 
@@ -219,11 +220,7 @@ function Tasks() {
           icon={<TrendingUp />}
           title="Em andamento"
           value={
-            allTasks.filter(
-              (task) =>
-                task.status ===
-                "Em andamento"
-            ).length
+            allTasks.filter((task) => task.status === "Em andamento").length
           }
           color="orange"
         />
@@ -231,46 +228,28 @@ function Tasks() {
         <Card
           icon={<ShieldAlert />}
           title="Revisão"
-          value={
-            allTasks.filter(
-              (task) =>
-                task.status === "Revisão"
-            ).length
-          }
+          value={allTasks.filter((task) => task.status === "Revisão").length}
           color="yellow"
         />
 
         <Card
           icon={<AlertTriangle />}
           title="Alta prioridade"
-          value={
-            allTasks.filter(
-              (task) =>
-                task.priority === "Alta"
-            ).length
-          }
+          value={allTasks.filter((task) => task.priority === "Alta").length}
           color="red"
         />
 
         <Card
           icon={<CheckCircle />}
           title="Concluídas"
-          value={
-            allTasks.filter(
-              (task) =>
-                task.status ===
-                "Concluída"
-            ).length
-          }
+          value={allTasks.filter((task) => task.status === "Concluída").length}
           color="emerald"
         />
       </div>
 
       {loading ? (
         <div className="mt-10">
-          <p className="text-slate-500">
-            Carregando tarefas...
-          </p>
+          <p className="text-slate-500">Carregando tarefas...</p>
         </div>
       ) : viewMode === "lista" ? (
         <div className="bg-white rounded-2xl shadow p-6 border border-purple-100 mt-8">
@@ -294,27 +273,25 @@ function Tasks() {
 
       <TaskModal
         open={taskModalOpen}
-        onClose={() =>
-          setTaskModalOpen(false)
-        }
+        onClose={() => setTaskModalOpen(false)}
         task={selectedTask}
         companyId={selectedTask?.companyId}
         companyName={selectedTask?.companyName}
+      />
+
+      <CreateTaskModal
+        open={createTaskOpen}
+        onClose={() => setCreateTaskOpen(false)}
+        companies={companies}
       />
     </AppLayout>
   );
 }
 
-function TaskCard({
-  task,
-  openTaskModal,
-  getPriorityColor,
-}) {
+function TaskCard({ task, openTaskModal, getPriorityColor }) {
   return (
     <div
-      onClick={() =>
-        openTaskModal(task)
-      }
+      onClick={() => openTaskModal(task)}
       className="border border-purple-100 rounded-2xl p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-5 cursor-pointer hover:shadow-lg transition"
     >
       <div>
@@ -328,15 +305,11 @@ function TaskCard({
           </p>
 
           <p className="text-slate-600 text-sm">
-            Responsável:{" "}
-            {task.responsible ||
-              "Não informado"}
+            Responsável: {task.responsible || "Não informado"}
           </p>
 
           <p className="text-slate-600 text-sm">
-            Prazo:{" "}
-            {task.dueDate ||
-              "Sem prazo"}
+            Prazo: {task.dueDate || "Sem prazo"}
           </p>
         </div>
       </div>
@@ -358,12 +331,7 @@ function TaskCard({
   );
 }
 
-function Card({
-  icon,
-  title,
-  value,
-  color = "fuchsia",
-}) {
+function Card({ icon, title, value, color = "fuchsia" }) {
   const colors = {
     fuchsia: "text-fuchsia-600",
     yellow: "text-yellow-600",
@@ -374,9 +342,7 @@ function Card({
 
   return (
     <div className="bg-white p-5 rounded-2xl shadow border border-purple-100">
-      <div
-        className={`${colors[color]} mb-4`}
-      >
+      <div className={`${colors[color]} mb-4`}>
         {icon}
       </div>
 
@@ -384,9 +350,7 @@ function Card({
         {title}
       </p>
 
-      <h2
-        className={`text-3xl font-bold mt-2 ${colors[color]}`}
-      >
+      <h2 className={`text-3xl font-bold mt-2 ${colors[color]}`}>
         {value}
       </h2>
     </div>

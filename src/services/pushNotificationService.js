@@ -2,9 +2,12 @@ import {
   getMessaging,
   getToken,
   onMessage,
+  deleteToken,
 } from "firebase/messaging";
 
 import {
+  arrayRemove,
+  arrayUnion,
   doc,
   updateDoc,
 } from "firebase/firestore";
@@ -49,6 +52,10 @@ export async function enablePushNotifications() {
 
     await updateDoc(userRef, {
       pushToken: token,
+
+      pushTokens: arrayUnion(
+        token
+      ),
     });
 
     console.log(
@@ -64,6 +71,56 @@ export async function enablePushNotifications() {
     );
 
     return null;
+  }
+}
+
+export async function disablePushNotifications() {
+  try {
+    const messaging =
+      getMessaging();
+
+    const token =
+      await getToken(messaging, {
+        vapidKey,
+      });
+
+    if (!token) return false;
+
+    await deleteToken(
+      messaging
+    );
+
+    const user =
+      auth.currentUser;
+
+    if (!user) return false;
+
+    const userRef = doc(
+      db,
+      "users",
+      user.uid
+    );
+
+    await updateDoc(userRef, {
+      pushToken: "",
+
+      pushTokens:
+        arrayRemove(token),
+    });
+
+    console.log(
+      "Push removido:",
+      token
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "Erro removendo push:",
+      error
+    );
+
+    return false;
   }
 }
 

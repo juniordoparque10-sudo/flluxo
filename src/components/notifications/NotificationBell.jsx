@@ -29,6 +29,7 @@ import { auth, db } from "../../firebase/config";
 
 import {
   enablePushNotifications,
+  disablePushNotifications,
   listenForegroundMessages,
 } from "../../services/pushNotificationService";
 
@@ -38,14 +39,18 @@ function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [open, setOpen] = useState(false);
   const [liveToast, setLiveToast] = useState(null);
-  const [pushStatus, setPushStatus] = useState(
-    Notification?.permission || "default"
-  );
+  const [pushEnabled, setPushEnabled] = useState(false);
 
   const initialized = useRef(false);
   const knownIds = useRef(new Set());
 
   const user = auth.currentUser;
+
+  useEffect(() => {
+    setPushEnabled(
+      Notification?.permission === "granted"
+    );
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -104,12 +109,28 @@ function NotificationBell() {
 
     listenForegroundMessages();
 
-    setPushStatus(Notification.permission);
-
     if (token) {
-      alert("Notificações push ativadas com sucesso!");
+      setPushEnabled(true);
+      alert("Push ativado neste dispositivo!");
     } else {
-      alert("Não foi possível ativar as notificações push.");
+      alert("Não foi possível ativar o push.");
+    }
+  }
+
+  async function handleDisablePush() {
+    const confirmDisable = window.confirm(
+      "Deseja desativar o push deste dispositivo?"
+    );
+
+    if (!confirmDisable) return;
+
+    const disabled = await disablePushNotifications();
+
+    if (disabled) {
+      setPushEnabled(false);
+      alert("Push desativado neste dispositivo.");
+    } else {
+      alert("Não foi possível desativar o push.");
     }
   }
 
@@ -137,11 +158,12 @@ function NotificationBell() {
 
   async function markAsRead(notificationId) {
     try {
-      const notificationRef = doc(db, "notifications", notificationId);
-
-      await updateDoc(notificationRef, {
-        readBy: arrayUnion(user.uid),
-      });
+      await updateDoc(
+        doc(db, "notifications", notificationId),
+        {
+          readBy: arrayUnion(user.uid),
+        }
+      );
     } catch (error) {
       console.error("Erro ao marcar notificação:", error);
     }
@@ -152,11 +174,12 @@ function NotificationBell() {
       const batch = writeBatch(db);
 
       notifications.forEach((notification) => {
-        const notificationRef = doc(db, "notifications", notification.id);
-
-        batch.update(notificationRef, {
-          readBy: arrayUnion(user.uid),
-        });
+        batch.update(
+          doc(db, "notifications", notification.id),
+          {
+            readBy: arrayUnion(user.uid),
+          }
+        );
       });
 
       await batch.commit();
@@ -167,7 +190,7 @@ function NotificationBell() {
 
   async function clearAllNotifications() {
     const confirmClear = window.confirm(
-      "Deseja limpar todas as suas notificações?"
+      "Deseja limpar todas as notificações apenas para você?"
     );
 
     if (!confirmClear) return;
@@ -176,14 +199,17 @@ function NotificationBell() {
       const batch = writeBatch(db);
 
       notifications.forEach((notification) => {
-        const notificationRef = doc(db, "notifications", notification.id);
-
-        batch.update(notificationRef, {
-          deletedBy: arrayUnion(user.uid),
-        });
+        batch.update(
+          doc(db, "notifications", notification.id),
+          {
+            deletedBy: arrayUnion(user.uid),
+          }
+        );
       });
 
       await batch.commit();
+
+      setNotifications([]);
     } catch (error) {
       console.error("Erro ao limpar notificações:", error);
     }
@@ -191,11 +217,16 @@ function NotificationBell() {
 
   async function deleteNotification(notificationId) {
     try {
-      const notificationRef = doc(db, "notifications", notificationId);
+      await updateDoc(
+        doc(db, "notifications", notificationId),
+        {
+          deletedBy: arrayUnion(user.uid),
+        }
+      );
 
-      await updateDoc(notificationRef, {
-        deletedBy: arrayUnion(user.uid),
-      });
+      setNotifications((prev) =>
+        prev.filter((item) => item.id !== notificationId)
+      );
     } catch (error) {
       console.error("Erro ao excluir notificação:", error);
     }
@@ -351,10 +382,15 @@ function NotificationBell() {
             </div>
 
             <div className="p-4 border-b border-purple-100">
-              {pushStatus === "granted" ? (
-                <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl p-3 text-sm font-medium">
-                  Push do navegador ativado neste dispositivo.
-                </div>
+              {pushEnabled ? (
+                <button
+                  type="button"
+                  onClick={handleDisablePush}
+                  className="w-full flex items-center justify-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-3 rounded-xl font-semibold transition"
+                >
+                  <Smartphone size={18} />
+                  Desativar push neste dispositivo
+                </button>
               ) : (
                 <button
                   type="button"
