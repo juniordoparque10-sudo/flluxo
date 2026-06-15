@@ -19,7 +19,11 @@ import {
   X,
 } from "lucide-react";
 
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import { signOut } from "firebase/auth";
 
@@ -38,19 +42,23 @@ import { auth, db } from "../firebase/config";
 
 import NotificationBell from "../components/notifications/NotificationBell";
 
-import logoFlluxo from "../assets/logo-flluxo.png";
-
 function AppLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
 
   const [user] = useAuthState(auth);
 
-  const [userProfile, setUserProfile] = useState(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [userProfile, setUserProfile] =
+    useState(null);
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [loadingProfile, setLoadingProfile] =
+    useState(true);
+
+  const [mobileMenuOpen, setMobileMenuOpen] =
+    useState(false);
+
+  const [userMenuOpen, setUserMenuOpen] =
+    useState(false);
 
   const dropdownRef = useRef(null);
 
@@ -58,16 +66,24 @@ function AppLayout({ children }) {
     function handleClickOutside(event) {
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target)
+        !dropdownRef.current.contains(
+          event.target
+        )
       ) {
         setUserMenuOpen(false);
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
     };
   }, []);
 
@@ -80,7 +96,11 @@ function AppLayout({ children }) {
 
     setLoadingProfile(true);
 
-    const userRef = doc(db, "users", user.uid);
+    const userRef = doc(
+      db,
+      "users",
+      user.uid
+    );
 
     const unsubscribe = onSnapshot(
       userRef,
@@ -97,13 +117,19 @@ function AppLayout({ children }) {
 
         const emailQuery = query(
           collection(db, "users"),
-          where("email", "==", user.email)
+          where(
+            "email",
+            "==",
+            user.email
+          )
         );
 
-        const emailSnapshot = await getDocs(emailQuery);
+        const emailSnapshot =
+          await getDocs(emailQuery);
 
         if (!emailSnapshot.empty) {
-          const firstUser = emailSnapshot.docs[0];
+          const firstUser =
+            emailSnapshot.docs[0];
 
           setUserProfile({
             id: firstUser.id,
@@ -116,7 +142,10 @@ function AppLayout({ children }) {
         setLoadingProfile(false);
       },
       (error) => {
-        console.error("Erro ao carregar perfil:", error);
+        console.error(
+          "Erro ao carregar perfil:",
+          error
+        );
 
         setUserProfile(null);
         setLoadingProfile(false);
@@ -127,7 +156,9 @@ function AppLayout({ children }) {
   }, [user]);
 
   function isActive(path) {
-    return location.pathname.startsWith(path);
+    return location.pathname.startsWith(
+      path
+    );
   }
 
   async function handleLogout() {
@@ -138,9 +169,14 @@ function AppLayout({ children }) {
   function canAccess(permission) {
     if (!userProfile) return false;
 
-    if (userProfile.role === "admin") return true;
+    if (userProfile.role === "admin")
+      return true;
 
-    return userProfile.permissions?.[permission] === true;
+    return (
+      userProfile.permissions?.[
+        permission
+      ] === true
+    );
   }
 
   const menuClass = (path) =>
@@ -172,9 +208,9 @@ function AppLayout({ children }) {
       >
         <div className="flex items-center justify-between shrink-0 mb-5">
           <img
-            src={logoFlluxo}
+            src="/logo-flluxo.png"
             alt="Flluxo"
-            className="w-40 max-h-24 object-contain"
+            className="w-44 max-h-24 object-contain drop-shadow-xl"
           />
 
           <button
@@ -196,19 +232,29 @@ function AppLayout({ children }) {
               {canAccess("dashboard") && (
                 <Link
                   to="/dashboard"
-                  className={menuClass("/dashboard")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/dashboard"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <Home size={18} />
                   Dashboard
                 </Link>
               )}
 
-              {canAccess("globalSearch") && (
+              {canAccess(
+                "globalSearch"
+              ) && (
                 <Link
                   to="/pesquisa"
-                  className={menuClass("/pesquisa")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/pesquisa"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <FileSearch size={18} />
                   Pesquisa Global
@@ -218,19 +264,29 @@ function AppLayout({ children }) {
               {canAccess("companies") && (
                 <Link
                   to="/empresas"
-                  className={menuClass("/empresas")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/empresas"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <Building2 size={18} />
                   Empresas
                 </Link>
               )}
 
-              {canAccess("documents") && (
+              {canAccess(
+                "documents"
+              ) && (
                 <Link
                   to="/documentos"
-                  className={menuClass("/documentos")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/documentos"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <FileText size={18} />
                   Documentos
@@ -240,8 +296,12 @@ function AppLayout({ children }) {
               {canAccess("agenda") && (
                 <Link
                   to="/agenda"
-                  className={menuClass("/agenda")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/agenda"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <CalendarDays size={18} />
                   Agenda
@@ -251,52 +311,79 @@ function AppLayout({ children }) {
               {canAccess("tasks") && (
                 <Link
                   to="/tarefas"
-                  className={menuClass("/tarefas")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/tarefas"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <CheckSquare size={18} />
                   Tarefas
                 </Link>
               )}
 
-              {canAccess("quickRegister") && (
+              {canAccess(
+                "quickRegister"
+              ) && (
                 <Link
                   to="/registro-rapido"
-                  className={menuClass("/registro-rapido")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/registro-rapido"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <BellRing size={18} />
                   Registro Rápido
                 </Link>
               )}
 
-              {canAccess("collaborators") && (
+              {canAccess(
+                "collaborators"
+              ) && (
                 <Link
                   to="/colaboradores"
-                  className={menuClass("/colaboradores")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/colaboradores"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <Users size={18} />
                   Colaboradores
                 </Link>
               )}
 
-              {canAccess("activityLogs") && (
+              {canAccess(
+                "activityLogs"
+              ) && (
                 <Link
                   to="/logs"
-                  className={menuClass("/logs")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/logs"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <Activity size={18} />
                   Logs de Atividades
                 </Link>
               )}
 
-              {userProfile?.role === "admin" && (
+              {userProfile?.role ===
+                "admin" && (
                 <Link
                   to="/gestao-acessos"
-                  className={menuClass("/gestao-acessos")}
-                  onClick={closeMobileMenu}
+                  className={menuClass(
+                    "/gestao-acessos"
+                  )}
+                  onClick={
+                    closeMobileMenu
+                  }
                 >
                   <ShieldCheck size={18} />
                   Gestão de Acessos
@@ -312,10 +399,15 @@ function AppLayout({ children }) {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(true)}
+              onClick={() =>
+                setMobileMenuOpen(true)
+              }
               className="lg:hidden bg-white border border-purple-100 p-3 rounded-xl shadow"
             >
-              <Menu size={22} className="text-[#1b1028]" />
+              <Menu
+                size={22}
+                className="text-[#1b1028]"
+              />
             </button>
 
             <div>
@@ -332,15 +424,24 @@ function AppLayout({ children }) {
           <div className="flex items-center gap-4">
             <NotificationBell />
 
-            <div className="relative" ref={dropdownRef}>
+            <div
+              className="relative"
+              ref={dropdownRef}
+            >
               <button
                 type="button"
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                onClick={() =>
+                  setUserMenuOpen(
+                    !userMenuOpen
+                  )
+                }
                 className="flex items-center gap-3 bg-white border border-purple-100 hover:border-fuchsia-300 rounded-2xl px-4 py-2 shadow-sm transition"
               >
                 {userProfile?.photoURL ? (
                   <img
-                    src={userProfile.photoURL}
+                    src={
+                      userProfile.photoURL
+                    }
                     alt="Avatar"
                     className="w-11 h-11 rounded-full object-cover border-2 border-fuchsia-500"
                   />
@@ -352,17 +453,22 @@ function AppLayout({ children }) {
 
                 <div className="hidden md:block text-left">
                   <p className="font-semibold text-[#1b1028] text-sm">
-                    {userProfile?.name || "Usuário"}
+                    {userProfile?.name ||
+                      "Usuário"}
                   </p>
 
                   <p className="text-xs text-slate-500">
-                    {userProfile?.role === "admin"
+                    {userProfile?.role ===
+                    "admin"
                       ? "Gestor"
                       : "Colaborador"}
                   </p>
                 </div>
 
-                <ChevronDown size={18} className="text-slate-500" />
+                <ChevronDown
+                  size={18}
+                  className="text-slate-500"
+                />
               </button>
 
               {userMenuOpen && (
@@ -371,7 +477,9 @@ function AppLayout({ children }) {
                     <div className="flex items-center gap-3">
                       {userProfile?.photoURL ? (
                         <img
-                          src={userProfile.photoURL}
+                          src={
+                            userProfile.photoURL
+                          }
                           alt="Avatar"
                           className="w-14 h-14 rounded-full object-cover border-2 border-fuchsia-500"
                         />
@@ -383,7 +491,8 @@ function AppLayout({ children }) {
 
                       <div>
                         <p className="font-bold text-[#1b1028]">
-                          {userProfile?.name || "Usuário"}
+                          {userProfile?.name ||
+                            "Usuário"}
                         </p>
 
                         <p className="text-sm text-slate-500 break-all">
@@ -396,7 +505,11 @@ function AppLayout({ children }) {
                   <div className="p-3">
                     <Link
                       to="/perfil"
-                      onClick={() => setUserMenuOpen(false)}
+                      onClick={() =>
+                        setUserMenuOpen(
+                          false
+                        )
+                      }
                       className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-purple-50 transition text-[#1b1028]"
                     >
                       <Settings size={18} />

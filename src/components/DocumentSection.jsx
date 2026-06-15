@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { CheckCircle, Edit, Trash2, X } from "lucide-react";
+import {
+  CheckCircle,
+  Edit,
+  Trash2,
+  X,
+  Building2,
+  Users,
+  ClipboardList,
+} from "lucide-react";
+
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 import {
@@ -20,10 +29,7 @@ import {
 import { auth, db, storage } from "../firebase/config";
 import { createNotification } from "../services/notificationService";
 
-function DocumentSection({
-  companyId,
-  highlightedItem,
-}) {
+function DocumentSection({ companyId, highlightedItem }) {
   const storageKey = `flluxo_documents_${companyId}`;
   const migrationKey = `flluxo_documents_${companyId}_migrated`;
 
@@ -38,16 +44,51 @@ function DocumentSection({
 
   const [form, setForm] = useState({
     name: "",
-    category: "Contrato",
+    category: "DOC - EMPRESA",
     dueDate: "",
     status: "Pendente",
   });
+
+  const documentGroups = [
+    {
+      key: "DOC - EMPRESA",
+      title: "DOC • EMPRESA",
+      description: "CNPJ, contrato social, certidões, alvarás e documentos institucionais.",
+      icon: Building2,
+      cardClass: "from-fuchsia-600 to-purple-700",
+      borderClass: "border-fuchsia-200",
+      bgClass: "bg-fuchsia-50",
+      textClass: "text-fuchsia-700",
+      aliases: ["Contrato", "Certidão", "Guia", "Documentos Comercial", "Outro"],
+    },
+    {
+      key: "DOC - RH/DP",
+      title: "DOC • RH/DP",
+      description: "Folha, férias, admissão, rescisão, FGTS, INSS e documentos trabalhistas.",
+      icon: Users,
+      cardClass: "from-blue-600 to-indigo-700",
+      borderClass: "border-blue-200",
+      bgClass: "bg-blue-50",
+      textClass: "text-blue-700",
+      aliases: ["Documentos RH", "RH", "DP"],
+    },
+    {
+      key: "DOC - OPERACIONAIS",
+      title: "DOC • OPERACIONAIS",
+      description: "Relatórios, checklists, licenças, processos e documentos operacionais.",
+      icon: ClipboardList,
+      cardClass: "from-orange-500 to-red-600",
+      borderClass: "border-orange-200",
+      bgClass: "bg-orange-50",
+      textClass: "text-orange-700",
+      aliases: ["Documentos Operacional", "Operacional", "Boleto", "Nota fiscal"],
+    },
+  ];
 
   useEffect(() => {
     async function loadPermissions() {
       try {
         const user = auth.currentUser;
-
         if (!user) return;
 
         const userRef = doc(db, "users", user.uid);
@@ -55,7 +96,6 @@ function DocumentSection({
 
         if (userSnap.exists()) {
           const data = userSnap.data();
-
           setPermissions(data.permissions || {});
           setUserRole(data.role || "collaborator");
           return;
@@ -70,7 +110,6 @@ function DocumentSection({
 
         if (!emailSnapshot.empty) {
           const data = emailSnapshot.docs[0].data();
-
           setPermissions(data.permissions || {});
           setUserRole(data.role || "collaborator");
         }
@@ -133,25 +172,16 @@ function DocumentSection({
   }, [companyId]);
 
   const isAdmin = userRole === "admin";
-
-  const canCreateDocument =
-    isAdmin || permissions?.documentCreate === true;
-
-  const canEditDocument =
-    isAdmin || permissions?.documentEdit === true;
-
-  const canDeleteDocument =
-    isAdmin || permissions?.documentDelete === true;
+  const canCreateDocument = isAdmin || permissions?.documentCreate === true;
+  const canEditDocument = isAdmin || permissions?.documentEdit === true;
+  const canDeleteDocument = isAdmin || permissions?.documentDelete === true;
 
   async function migrateLocalDocuments() {
     try {
       const migrated = localStorage.getItem(migrationKey);
-
       if (migrated === "true") return;
 
-      const localDocuments = JSON.parse(
-        localStorage.getItem(storageKey) || "[]"
-      );
+      const localDocuments = JSON.parse(localStorage.getItem(storageKey) || "[]");
 
       if (localDocuments.length === 0) {
         localStorage.setItem(migrationKey, "true");
@@ -161,7 +191,7 @@ function DocumentSection({
       for (const documentItem of localDocuments) {
         await addDoc(collection(db, "companies", companyId, "documents"), {
           name: documentItem.name || "",
-          category: documentItem.category || "Contrato",
+          category: normalizeCategory(documentItem.category || "DOC - EMPRESA"),
           dueDate: documentItem.dueDate || "",
           status: documentItem.status || "Pendente",
           fileUrl: documentItem.fileUrl || "",
@@ -173,11 +203,26 @@ function DocumentSection({
       }
 
       localStorage.setItem(migrationKey, "true");
-
-      console.log("Documentos migrados com sucesso!");
     } catch (error) {
       console.error("Erro ao migrar documentos:", error);
     }
+  }
+
+  function normalizeCategory(category) {
+    const foundGroup = documentGroups.find(
+      (group) =>
+        group.key === category ||
+        group.aliases.includes(category)
+    );
+
+    return foundGroup ? foundGroup.key : "DOC - EMPRESA";
+  }
+
+  function getDocumentsByGroup(group) {
+    return documents.filter((documentItem) => {
+      const normalized = normalizeCategory(documentItem.category || "");
+      return normalized === group.key;
+    });
   }
 
   function handleChange(e) {
@@ -222,7 +267,7 @@ function DocumentSection({
   function resetForm() {
     setForm({
       name: "",
-      category: "Contrato",
+      category: "DOC - EMPRESA",
       dueDate: "",
       status: "Pendente",
     });
@@ -247,7 +292,7 @@ function DocumentSection({
 
     setForm({
       name: documentItem.name || "",
-      category: documentItem.category || "Contrato",
+      category: normalizeCategory(documentItem.category || "DOC - EMPRESA"),
       dueDate: documentItem.dueDate || "",
       status: documentItem.status || "Pendente",
     });
@@ -294,7 +339,6 @@ function DocumentSection({
       if (selectedFile) {
         const safeFileName = selectedFile.name.replace(/\s+/g, "_");
         const filePath = `companies/${companyId}/documents/${Date.now()}_${safeFileName}`;
-
         const fileRef = ref(storage, filePath);
 
         await uploadBytes(fileRef, selectedFile);
@@ -315,6 +359,7 @@ function DocumentSection({
 
         const updateData = {
           ...form,
+          category: normalizeCategory(form.category),
           updatedAt: serverTimestamp(),
         };
 
@@ -333,10 +378,10 @@ function DocumentSection({
           companyId,
           documentId: editingDocumentId,
           targetUrl: `/empresas/${companyId}#document-${editingDocumentId}`,
+          excludeUserId: auth.currentUser?.uid || "",
         });
 
         resetForm();
-
         alert("Documento atualizado com sucesso!");
         return;
       }
@@ -345,6 +390,7 @@ function DocumentSection({
         collection(db, "companies", companyId, "documents"),
         {
           ...form,
+          category: normalizeCategory(form.category),
           fileUrl,
           fileName,
           fileType,
@@ -359,10 +405,10 @@ function DocumentSection({
         companyId,
         documentId: documentRef.id,
         targetUrl: `/empresas/${companyId}#document-${documentRef.id}`,
+        excludeUserId: auth.currentUser?.uid || "",
       });
 
       resetForm();
-
       alert("Documento cadastrado com sucesso!");
     } catch (error) {
       console.error(error);
@@ -411,6 +457,7 @@ function DocumentSection({
         companyId,
         documentId,
         targetUrl: `/empresas/${companyId}#document-${documentId}`,
+        excludeUserId: auth.currentUser?.uid || "",
       });
     } catch (error) {
       console.error("Erro ao atualizar documento:", error);
@@ -446,6 +493,7 @@ function DocumentSection({
         companyId,
         documentId: documentItem.id,
         targetUrl: `/empresas/${companyId}`,
+        excludeUserId: auth.currentUser?.uid || "",
       });
 
       alert("Documento apagado com sucesso!");
@@ -459,13 +507,10 @@ function DocumentSection({
     switch (status) {
       case "Pago":
         return "bg-emerald-100 text-emerald-700";
-
       case "Vencido":
         return "bg-red-100 text-red-700";
-
       case "Arquivado":
         return "bg-slate-200 text-slate-700";
-
       default:
         return "bg-fuchsia-100 text-fuchsia-700";
     }
@@ -474,9 +519,15 @@ function DocumentSection({
   return (
     <div className="bg-white rounded-2xl shadow p-6 mt-8 border border-purple-100">
       <div className="flex items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-bold text-[#1b1028]">
-          Documentos
-        </h2>
+        <div>
+          <h2 className="text-2xl font-bold text-[#1b1028]">
+            Documentos
+          </h2>
+
+          <p className="text-sm text-slate-500 mt-1">
+            Organize os documentos da empresa por área.
+          </p>
+        </div>
 
         {editingDocumentId && (
           <button
@@ -521,15 +572,9 @@ function DocumentSection({
               onChange={handleChange}
               className="w-full border border-purple-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
             >
-              <option>Contrato</option>
-              <option>Boleto</option>
-              <option>Nota fiscal</option>
-              <option>Certidão</option>
-              <option>Guia</option>
-              <option>Documentos RH</option>
-              <option>Documentos Operacional</option>
-              <option>Documentos Comercial</option>
-              <option>Outro</option>
+              <option>DOC - EMPRESA</option>
+              <option>DOC - RH/DP</option>
+              <option>DOC - OPERACIONAIS</option>
             </select>
           </div>
 
@@ -630,105 +675,152 @@ function DocumentSection({
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {documents.map((documentItem) => (
-            <div
-              id={`document-${documentItem.id}`}
-              key={documentItem.id}
-              className={`border rounded-xl p-5 flex items-center justify-between gap-4 transition-all duration-500 scroll-mt-32 ${
-                highlightedItem === documentItem.id
-                  ? "border-fuchsia-600 bg-fuchsia-100 shadow-[0_0_30px_rgba(192,38,211,0.45)] scale-[1.01]"
-                  : editingDocumentId === documentItem.id
-                  ? "border-fuchsia-300 bg-purple-50"
-                  : "border-purple-100 hover:bg-purple-50"
-              }`}
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  {documentItem.status === "Pago" && (
-                    <CheckCircle size={20} className="text-emerald-600" />
-                  )}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {documentGroups.map((group) => {
+            const Icon = group.icon;
+            const groupDocuments = getDocumentsByGroup(group);
 
-                  <h3
-                    className={`font-bold text-lg ${
-                      documentItem.status === "Pago"
-                        ? "text-emerald-700"
-                        : "text-[#1b1028]"
-                    }`}
-                  >
-                    {documentItem.name}
-                  </h3>
+            return (
+              <div
+                key={group.key}
+                className={`rounded-3xl border ${group.borderClass} overflow-hidden shadow-sm bg-white`}
+              >
+                <div className={`bg-gradient-to-r ${group.cardClass} p-5 text-white`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-bold">
+                        {group.title}
+                      </h3>
+
+                      <p className="text-white/80 text-sm mt-1">
+                        {groupDocuments.length} documento(s)
+                      </p>
+                    </div>
+
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
+                      <Icon size={24} />
+                    </div>
+                  </div>
+
+                  <p className="text-white/80 text-xs mt-4 leading-relaxed">
+                    {group.description}
+                  </p>
                 </div>
 
-                <p className="text-slate-600 text-sm mt-1">
-                  Categoria: {documentItem.category}
-                </p>
+                <div className={`${group.bgClass} p-4 min-h-[280px]`}>
+                  {groupDocuments.length === 0 ? (
+                    <div className="bg-white/80 border border-dashed border-slate-200 rounded-2xl p-5 text-center">
+                      <p className="text-sm text-slate-500">
+                        Nenhum documento nesta categoria.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {groupDocuments.map((documentItem) => (
+                        <div
+                          id={`document-${documentItem.id}`}
+                          key={documentItem.id}
+                          className={`bg-white border rounded-2xl p-4 transition-all duration-500 scroll-mt-32 ${
+                            highlightedItem === documentItem.id
+                              ? "border-fuchsia-600 bg-fuchsia-100 shadow-[0_0_30px_rgba(192,38,211,0.45)] scale-[1.01]"
+                              : editingDocumentId === documentItem.id
+                              ? "border-fuchsia-300"
+                              : "border-white hover:border-purple-200 hover:shadow-md"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                {documentItem.status === "Pago" && (
+                                  <CheckCircle
+                                    size={18}
+                                    className="text-emerald-600"
+                                  />
+                                )}
 
-                <p className="text-slate-600 text-sm">
-                  Vencimento: {documentItem.dueDate || "Sem vencimento"}
-                </p>
+                                <h4
+                                  className={`font-bold ${
+                                    documentItem.status === "Pago"
+                                      ? "text-emerald-700"
+                                      : "text-[#1b1028]"
+                                  }`}
+                                >
+                                  {documentItem.name}
+                                </h4>
+                              </div>
 
-                <p className="text-slate-600 text-sm">
-                  Arquivo: {documentItem.fileName || "Nenhum arquivo anexado"}
-                </p>
+                              <p className="text-slate-600 text-xs mt-2">
+                                Vencimento: {documentItem.dueDate || "Sem vencimento"}
+                              </p>
+
+                              <p className="text-slate-600 text-xs">
+                                Arquivo: {documentItem.fileName || "Nenhum arquivo"}
+                              </p>
+                            </div>
+
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+                                documentItem.status
+                              )}`}
+                            >
+                              {documentItem.status === "Pago"
+                                ? "Resolvido"
+                                : documentItem.status}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap mt-4">
+                            {documentItem.fileUrl && (
+                              <a
+                                href={documentItem.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="bg-[#1b1028] hover:bg-fuchsia-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition"
+                              >
+                                Abrir
+                              </a>
+                            )}
+
+                            {canEditDocument && (
+                              <button
+                                type="button"
+                                onClick={() => toggleDocumentStatus(documentItem.id)}
+                                className="bg-[#1b1028] hover:bg-fuchsia-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition"
+                              >
+                                {documentItem.status === "Pago" ? "Reabrir" : "Resolver"}
+                              </button>
+                            )}
+
+                            {canEditDocument && (
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(documentItem)}
+                                className="flex items-center gap-1 bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-lg text-xs font-medium transition"
+                              >
+                                <Edit size={14} />
+                                Editar
+                              </button>
+                            )}
+
+                            {canDeleteDocument && (
+                              <button
+                                type="button"
+                                onClick={() => deleteDocument(documentItem)}
+                                className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg text-xs font-medium transition"
+                              >
+                                <Trash2 size={14} />
+                                Apagar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-
-              <div className="flex items-center gap-3 flex-wrap justify-end">
-                {documentItem.fileUrl && (
-                  <a
-                    href={documentItem.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="bg-[#1b1028] hover:bg-fuchsia-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                  >
-                    Abrir arquivo
-                  </a>
-                )}
-
-                {canEditDocument && (
-                  <button
-                    type="button"
-                    onClick={() => toggleDocumentStatus(documentItem.id)}
-                    className="bg-[#1b1028] hover:bg-fuchsia-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                  >
-                    {documentItem.status === "Pago" ? "Reabrir" : "Resolver"}
-                  </button>
-                )}
-
-                {canEditDocument && (
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(documentItem)}
-                    className="flex items-center gap-2 bg-orange-100 hover:bg-orange-200 text-orange-700 px-4 py-2 rounded-lg text-sm font-medium transition"
-                  >
-                    <Edit size={16} />
-                    Editar
-                  </button>
-                )}
-
-                {canDeleteDocument && (
-                  <button
-                    type="button"
-                    onClick={() => deleteDocument(documentItem)}
-                    className="flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg text-sm font-medium transition"
-                  >
-                    <Trash2 size={16} />
-                    Apagar
-                  </button>
-                )}
-
-                <span
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(
-                    documentItem.status
-                  )}`}
-                >
-                  {documentItem.status === "Pago"
-                    ? "Resolvido"
-                    : documentItem.status}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
