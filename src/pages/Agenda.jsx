@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import {
   CalendarClock,
   Edit,
@@ -20,7 +21,7 @@ import {
 } from "firebase/firestore";
 
 import AppLayout from "../layouts/AppLayout";
-import { db } from "../firebase/config";
+import { auth, db } from "../firebase/config";
 import { createNotification } from "../services/notificationService";
 
 function Agenda() {
@@ -136,6 +137,7 @@ function Agenda() {
           time: event.time || "",
           description: event.description || "",
           status: event.status || "Agendado",
+          notified: event.notified || false,
           createdAt: event.createdAt || new Date().toISOString(),
           migratedFromLocalStorage: true,
         });
@@ -226,10 +228,17 @@ function Agenda() {
 
       if (editingEventId) {
         const eventRef = doc(db, "agendaEvents", editingEventId);
+        const currentEvent = events.find((event) => event.id === editingEventId);
 
         await updateDoc(eventRef, {
           ...form,
           companyName,
+          createdByUserId:
+            currentEvent?.createdByUserId || auth.currentUser?.uid || "",
+          createdByEmail:
+            currentEvent?.createdByEmail || auth.currentUser?.email || "",
+          notified: false,
+          notifiedAt: null,
           updatedAt: serverTimestamp(),
         });
 
@@ -249,6 +258,10 @@ function Agenda() {
       const eventRef = await addDoc(collection(db, "agendaEvents"), {
         ...form,
         companyName,
+        createdByUserId: auth.currentUser?.uid || "",
+        createdByEmail: auth.currentUser?.email || "",
+        notified: false,
+        notifiedAt: null,
         createdAt: serverTimestamp(),
       });
 
@@ -580,6 +593,12 @@ function Agenda() {
                     {event.description && (
                       <p className="text-slate-500 text-sm mt-2">
                         {event.description}
+                      </p>
+                    )}
+
+                    {event.notified && (
+                      <p className="text-xs text-emerald-600 font-semibold mt-2">
+                        Lembrete enviado
                       </p>
                     )}
                   </div>

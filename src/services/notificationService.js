@@ -20,6 +20,8 @@ export async function createNotification({
   excludeUserId = "",
 }) {
   const user = auth.currentUser;
+  const creatorUserId = user?.uid || "";
+  const resolvedExcludeUserId = excludeUserId || creatorUserId;
 
   await addDoc(collection(db, "notifications"), {
     title,
@@ -34,9 +36,9 @@ export async function createNotification({
 
     targetUserId,
     targetUserEmail,
-    excludeUserId,
+    excludeUserId: resolvedExcludeUserId,
 
-    createdByUserId: user?.uid || "",
+    createdByUserId: creatorUserId,
     createdByEmail: user?.email || "Sistema",
 
     readBy: [],

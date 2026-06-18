@@ -30,7 +30,6 @@ import { auth, db } from "../../firebase/config";
 import {
   enablePushNotifications,
   disablePushNotifications,
-  listenForegroundMessages,
 } from "../../services/pushNotificationService";
 
 function NotificationBell() {
@@ -70,6 +69,8 @@ function NotificationBell() {
           const deletedBy = notification.deletedBy || [];
 
           if (deletedBy.includes(user.uid)) return false;
+          if (notification.excludeUserId === user.uid) return false;
+          if (notification.createdByUserId === user.uid) return false;
 
           if (!notification.targetUserId && !notification.targetUserEmail) {
             return true;
@@ -106,8 +107,6 @@ function NotificationBell() {
 
   async function handleEnablePush() {
     const token = await enablePushNotifications();
-
-    listenForegroundMessages();
 
     if (token) {
       setPushEnabled(true);

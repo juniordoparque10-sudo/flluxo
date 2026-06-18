@@ -1,5 +1,6 @@
 const { setGlobalOptions } = require("firebase-functions");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 
 const admin = require("firebase-admin");
@@ -115,6 +116,83 @@ exports.sendPushOnNotificationCreated = onDocumentCreated(
       });
     } catch (error) {
       logger.error("Erro ao enviar push:", error);
+    }
+  }
+);
+
+exports.sendDueAgendaReminders = onSchedule(
+  {
+    schedule: "* * * * *",
+    timeZone: "America/Sao_Paulo",
+  },
+  async () => {
+    const firestore = admin.firestore();
+    const now = new Date();
+    const snapshot = await firestore
+      .collection("agendaEvents")
+      .get();
+
+    for (const eventDoc of snapshot.docs) {
+      const agendaEvent = eventDoc.data();
+
+      if (agendaEvent.notified === true) continue;
+      if (agendaEvent.status === "Concluído") continue;
+      if (!agendaEvent.date || !agendaEvent.time) continue;
+
+      const normalizedTime =
+        agendaEvent.time.length === 5
+          ? `${agendaEvent.time}:00`
+          : agendaEvent.time;
+      const dueAt = new Date(
+        `${agendaEvent.date}T${normalizedTime}-03:00`
+      );
+
+      if (Number.isNaN(dueAt.getTime()) || dueAt > now) continue;
+
+      try {
+        await firestore.runTransaction(async (transaction) => {
+          const freshEventDoc = await transaction.get(eventDoc.ref);
+
+          if (!freshEventDoc.exists) return;
+
+          const freshEvent = freshEventDoc.data();
+
+          if (freshEvent.notified === true) return;
+          if (freshEvent.status === "Concluído") return;
+
+          const creatorUserId = freshEvent.createdByUserId || "";
+          const notificationRef = firestore.collection("notifications").doc();
+
+          transaction.update(eventDoc.ref, {
+            notified: true,
+            notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          transaction.set(notificationRef, {
+            title: "Compromisso agendado",
+            message: `${freshEvent.title || "Compromisso"} está acontecendo agora.`,
+            type: "agenda-reminder",
+            companyId: freshEvent.companyId || "",
+            documentId: "",
+            taskId: "",
+            agendaEventId: eventDoc.id,
+            targetUrl: "/agenda",
+            targetUserId: "",
+            targetUserEmail: "",
+            excludeUserId: creatorUserId,
+            createdByUserId: creatorUserId,
+            createdByEmail: freshEvent.createdByEmail || "Sistema",
+            readBy: [],
+            deletedBy: [],
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        });
+      } catch (error) {
+        logger.error("Erro ao processar lembrete da agenda:", {
+          agendaEventId: eventDoc.id,
+          error,
+        });
+      }
     }
   }
 );

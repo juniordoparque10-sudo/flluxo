@@ -128,26 +128,6 @@ export function listenForegroundMessages() {
   const messaging =
     getMessaging();
 
-  onMessage(
-    messaging,
-    (payload) => {
-      console.log(
-        "Push recebido:",
-        payload
-      );
-
-      if (
-        Notification.permission ===
-        "granted"
-      ) {
-        new Notification(
-          payload.notification.title,
-          {
-            body: payload.notification.body,
-            icon: "/favicon.png",
-          }
-        );
-      }
-    }
-  );
+  // O sino em tempo real já apresenta a notificação com o app aberto.
+  return onMessage(messaging, () => {});
 }
