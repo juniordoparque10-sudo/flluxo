@@ -10,7 +10,6 @@ import {
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -74,10 +73,16 @@ function Collaborators() {
     const unsubscribe = onSnapshot(
       collaboratorsQuery,
       (snapshot) => {
-        const list = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        }));
+        const list = snapshot.docs
+          .map((item) => ({
+            id: item.id,
+            ...item.data(),
+          }))
+          .filter(
+            (collaborator) =>
+              collaborator.deleted !== true &&
+              collaborator.active !== false
+          );
 
         setCollaborators(list);
         setLoading(false);
@@ -114,6 +119,8 @@ function Collaborators() {
           sector: collaborator.sector || "Administrativo",
           photoURL: collaborator.photoURL || "",
           status: "Online",
+          active: true,
+          deleted: false,
           createdAt: collaborator.createdAt || new Date().toISOString(),
           migratedFromLocalStorage: true,
         });
@@ -154,7 +161,6 @@ function Collaborators() {
       setUploading(true);
 
       const fileName = `${Date.now()}_${file.name}`;
-
       const fileRef = ref(storage, `collaborators/${fileName}`);
 
       await uploadBytes(fileRef, file);
@@ -209,6 +215,10 @@ function Collaborators() {
 
     try {
       if (editingId) {
+        const collaborator = collaborators.find(
+          (item) => item.id === editingId
+        );
+
         const collaboratorRef = doc(db, "collaborators", editingId);
 
         await updateDoc(collaboratorRef, {
@@ -219,6 +229,20 @@ function Collaborators() {
           photoURL: form.photoURL,
           updatedAt: serverTimestamp(),
         });
+
+        if (collaborator?.uid) {
+          const systemRole =
+            form.role === "Administrador" ? "admin" : "collaborator";
+
+          await updateDoc(doc(db, "users", collaborator.uid), {
+            name: form.name,
+            email: form.email,
+            role: systemRole,
+            sector: form.sector,
+            photoURL: form.photoURL || "",
+            updatedAt: serverTimestamp(),
+          });
+        }
 
         alert("Colaborador atualizado!");
       } else {
@@ -272,6 +296,8 @@ function Collaborators() {
           sector: form.sector,
           photoURL: form.photoURL || "",
           status: "Online",
+          active: true,
+          deleted: false,
           createdAt: serverTimestamp(),
         });
 
@@ -283,6 +309,8 @@ function Collaborators() {
           sector: form.sector,
           photoURL: form.photoURL || "",
           status: "Online",
+          active: true,
+          deleted: false,
           createdAt: serverTimestamp(),
         });
 
@@ -320,19 +348,35 @@ function Collaborators() {
     });
   }
 
-  async function deleteCollaborator(id, name) {
+  async function deleteCollaborator(collaborator) {
     const confirmDelete = window.confirm(
-      `Deseja apagar o colaborador "${name}"?`
+      `Deseja apagar o colaborador "${collaborator.name}"?`
     );
 
     if (!confirmDelete) return;
 
     try {
-      await deleteDoc(doc(db, "collaborators", id));
+      await updateDoc(doc(db, "collaborators", collaborator.id), {
+        deleted: true,
+        active: false,
+        status: "Inativo",
+        deletedAt: serverTimestamp(),
+      });
 
-      if (editingId === id) {
+      if (collaborator.uid) {
+        await updateDoc(doc(db, "users", collaborator.uid), {
+          deleted: true,
+          active: false,
+          status: "Inativo",
+          deletedAt: serverTimestamp(),
+        });
+      }
+
+      if (editingId === collaborator.id) {
         resetForm();
       }
+
+      alert("Colaborador removido com sucesso!");
     } catch (error) {
       console.error("Erro ao apagar colaborador:", error);
       alert("Erro ao apagar colaborador.");
@@ -354,6 +398,8 @@ function Collaborators() {
     switch (status) {
       case "Online":
         return "bg-emerald-100 text-emerald-700";
+      case "Inativo":
+        return "bg-red-100 text-red-700";
       default:
         return "bg-slate-100 text-slate-700";
     }
@@ -413,13 +459,32 @@ function Collaborators() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mt-8 mb-8">
-        <DashboardCard icon={<Users />} title="Total" value={collaborators.length} />
-        <DashboardCard icon={<ShieldCheck />} title="Admins" value={adminCount} color="red" />
-        <DashboardCard icon={<UserCheck />} title="Equipe" value={collaboratorCount} color="emerald" />
+        <DashboardCard
+          icon={<Users />}
+          title="Total"
+          value={collaborators.length}
+        />
+
+        <DashboardCard
+          icon={<ShieldCheck />}
+          title="Admins"
+          value={adminCount}
+          color="red"
+        />
+
+        <DashboardCard
+          icon={<UserCheck />}
+          title="Equipe"
+          value={collaboratorCount}
+          color="emerald"
+        />
+
         <DashboardCard
           icon={<Activity />}
           title="Online"
-          value={collaborators.filter((item) => item.status === "Online").length}
+          value={
+            collaborators.filter((item) => item.status === "Online").length
+          }
           color="orange"
         />
       </div>
@@ -442,7 +507,10 @@ function Collaborators() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 md:grid-cols-4 gap-5"
+        >
           <div className="md:col-span-4 flex items-center gap-5">
             <div className="relative">
               {form.photoURL ? (
@@ -599,11 +667,19 @@ function Collaborators() {
                           {collaborator.name}
                         </h3>
 
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${getRoleColor(collaborator.role)}`}>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold ${getRoleColor(
+                            collaborator.role
+                          )}`}
+                        >
                           {collaborator.role}
                         </span>
 
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(collaborator.status)}`}>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(
+                            collaborator.status
+                          )}`}
+                        >
                           {collaborator.status || "Offline"}
                         </span>
                       </div>
@@ -634,7 +710,7 @@ function Collaborators() {
 
                     <button
                       type="button"
-                      onClick={() => deleteCollaborator(collaborator.id, collaborator.name)}
+                      onClick={() => deleteCollaborator(collaborator)}
                       className="flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-xl text-sm font-medium transition"
                     >
                       <Trash2 size={16} />
@@ -661,13 +737,9 @@ function DashboardCard({ icon, title, value, color = "fuchsia" }) {
 
   return (
     <div className="bg-white rounded-2xl shadow p-5 border border-purple-100">
-      <div className={`${colors[color]} mb-4`}>
-        {icon}
-      </div>
+      <div className={`${colors[color]} mb-4`}>{icon}</div>
 
-      <p className="text-slate-500 text-sm">
-        {title}
-      </p>
+      <p className="text-slate-500 text-sm">{title}</p>
 
       <h2 className={`text-3xl font-bold mt-2 ${colors[color]}`}>
         {value}

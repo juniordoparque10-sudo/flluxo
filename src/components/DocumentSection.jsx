@@ -7,6 +7,7 @@ import {
   Building2,
   Users,
   ClipboardList,
+  Landmark,
 } from "lucide-react";
 
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -52,18 +53,18 @@ function DocumentSection({ companyId, highlightedItem }) {
   const documentGroups = [
     {
       key: "DOC - EMPRESA",
-      title: "DOC • EMPRESA",
+      title: "Empresa",
       description: "CNPJ, contrato social, certidões, alvarás e documentos institucionais.",
       icon: Building2,
       cardClass: "from-fuchsia-600 to-purple-700",
       borderClass: "border-fuchsia-200",
       bgClass: "bg-fuchsia-50",
       textClass: "text-fuchsia-700",
-      aliases: ["Contrato", "Certidão", "Guia", "Documentos Comercial", "Outro"],
+      aliases: ["Contrato", "Certidão", "Documentos Comercial", "Outro"],
     },
     {
       key: "DOC - RH/DP",
-      title: "DOC • RH/DP",
+      title: "RH / DP",
       description: "Folha, férias, admissão, rescisão, FGTS, INSS e documentos trabalhistas.",
       icon: Users,
       cardClass: "from-blue-600 to-indigo-700",
@@ -73,15 +74,38 @@ function DocumentSection({ companyId, highlightedItem }) {
       aliases: ["Documentos RH", "RH", "DP"],
     },
     {
-      key: "DOC - OPERACIONAIS",
-      title: "DOC • OPERACIONAIS",
+      key: "DOC - FISCAL/TRABALHISTA",
+      title: "Fiscal / Trabalhista",
+      description: "Notas fiscais, guias, tributos, obrigações fiscais e documentos trabalhistas.",
+      icon: Landmark,
+      cardClass: "from-emerald-600 to-teal-700",
+      borderClass: "border-emerald-200",
+      bgClass: "bg-emerald-50",
+      textClass: "text-emerald-700",
+      aliases: [
+        "DOC - FISCAL",
+        "DOC - TRABALHISTA",
+        "Fiscal",
+        "Trabalhista",
+        "Guia",
+        "Boleto",
+        "Nota fiscal",
+      ],
+    },
+    {
+      key: "DOC - OPERACIONAL",
+      title: "Operacional",
       description: "Relatórios, checklists, licenças, processos e documentos operacionais.",
       icon: ClipboardList,
       cardClass: "from-orange-500 to-red-600",
       borderClass: "border-orange-200",
       bgClass: "bg-orange-50",
       textClass: "text-orange-700",
-      aliases: ["Documentos Operacional", "Operacional", "Boleto", "Nota fiscal"],
+      aliases: [
+        "DOC - OPERACIONAIS",
+        "Documentos Operacional",
+        "Operacional",
+      ],
     },
   ];
 
@@ -229,6 +253,18 @@ function DocumentSection({ companyId, highlightedItem }) {
     setForm({
       ...form,
       [e.target.name]: e.target.value,
+    });
+  }
+
+  function selectCategory(category) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      category,
+    }));
+
+    document.getElementById("document-form")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
     });
   }
 
@@ -543,6 +579,7 @@ function DocumentSection({ companyId, highlightedItem }) {
 
       {(canCreateDocument || editingDocumentId) ? (
         <form
+          id="document-form"
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8"
         >
@@ -574,7 +611,8 @@ function DocumentSection({ companyId, highlightedItem }) {
             >
               <option>DOC - EMPRESA</option>
               <option>DOC - RH/DP</option>
-              <option>DOC - OPERACIONAIS</option>
+              <option>DOC - FISCAL/TRABALHISTA</option>
+              <option>DOC - OPERACIONAL</option>
             </select>
           </div>
 
@@ -668,14 +706,8 @@ function DocumentSection({ companyId, highlightedItem }) {
             Carregando documentos em tempo real...
           </p>
         </div>
-      ) : documents.length === 0 ? (
-        <div className="bg-purple-50 border border-purple-100 rounded-xl p-5">
-          <p className="text-slate-500">
-            Nenhum documento cadastrado para esta empresa.
-          </p>
-        </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-6 items-start">
           {documentGroups.map((group) => {
             const Icon = group.icon;
             const groupDocuments = getDocumentsByGroup(group);
@@ -683,35 +715,51 @@ function DocumentSection({ companyId, highlightedItem }) {
             return (
               <div
                 key={group.key}
-                className={`rounded-3xl border ${group.borderClass} overflow-hidden shadow-sm bg-white`}
+                className={`rounded-3xl border ${group.borderClass} overflow-hidden shadow-sm bg-white h-full`}
               >
-                <div className={`bg-gradient-to-r ${group.cardClass} p-5 text-white`}>
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-xl font-bold">
+                <div
+                  className={`bg-gradient-to-br ${group.cardClass} p-5 text-white min-h-[268px] flex flex-col`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
+                        Categoria de documentos
+                      </p>
+
+                      <h3 className="mt-2 text-lg font-bold uppercase leading-6 min-h-12 break-words">
                         {group.title}
                       </h3>
 
-                      <p className="text-white/80 text-sm mt-1">
+                      <p className="text-white/75 text-xs font-medium mt-1">
                         {groupDocuments.length} documento(s)
                       </p>
                     </div>
 
-                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
-                      <Icon size={24} />
+                    <div className="w-11 h-11 shrink-0 rounded-xl bg-white/15 border border-white/10 flex items-center justify-center">
+                      <Icon size={20} strokeWidth={2} />
                     </div>
                   </div>
 
-                  <p className="text-white/80 text-xs mt-4 leading-relaxed">
+                  <p className="text-white/80 text-sm mt-4 leading-5 flex-1">
                     {group.description}
                   </p>
+
+                  {canCreateDocument && !editingDocumentId && (
+                    <button
+                      type="button"
+                      onClick={() => selectCategory(group.key)}
+                      className="mt-5 w-full min-h-11 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 px-3 py-2.5 text-sm font-semibold leading-5 transition"
+                    >
+                      Cadastrar nesta categoria
+                    </button>
+                  )}
                 </div>
 
                 <div className={`${group.bgClass} p-4 min-h-[280px]`}>
                   {groupDocuments.length === 0 ? (
                     <div className="bg-white/80 border border-dashed border-slate-200 rounded-2xl p-5 text-center">
                       <p className="text-sm text-slate-500">
-                        Nenhum documento nesta categoria.
+                        Os documentos cadastrados nesta categoria aparecerão aqui.
                       </p>
                     </div>
                   ) : (

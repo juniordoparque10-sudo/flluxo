@@ -7,6 +7,8 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
+const APP_URL = "https://flluxo-429x.vercel.app";
+
 setGlobalOptions({
   maxInstances: 10,
 });
@@ -24,6 +26,8 @@ exports.sendPushOnNotificationCreated = onDocumentCreated(
 
       const title = notification.title || "Nova notificação";
       const body = notification.message || "Você recebeu uma nova atualização.";
+      const targetUrl = notification.targetUrl || "/dashboard";
+      const webLink = new URL(targetUrl, APP_URL).toString();
 
       const targetUserId = notification.targetUserId || "";
       const targetUserEmail = notification.targetUserEmail || "";
@@ -100,17 +104,20 @@ exports.sendPushOnNotificationCreated = onDocumentCreated(
             badge: "/favicon.png",
           },
           fcmOptions: {
-            link: notification.targetUrl || "/dashboard",
+            link: webLink,
           },
         },
         data: {
           notificationId: event.params.notificationId,
-          targetUrl: notification.targetUrl || "/dashboard",
+          targetUrl,
           type: notification.type || "info",
         },
       });
 
       logger.info("Push enviado:", {
+        notificationId: event.params.notificationId,
+        type: notification.type || "info",
+        targetUrl: webLink,
         successCount: response.successCount,
         failureCount: response.failureCount,
       });
@@ -131,13 +138,30 @@ exports.sendDueAgendaReminders = onSchedule(
     const snapshot = await firestore
       .collection("agendaEvents")
       .get();
+    let remindersSent = 0;
+    const skipped = {
+      alreadyNotified: 0,
+      completed: 0,
+      missingSchedule: 0,
+      invalidSchedule: 0,
+      future: 0,
+    };
 
     for (const eventDoc of snapshot.docs) {
       const agendaEvent = eventDoc.data();
 
-      if (agendaEvent.notified === true) continue;
-      if (agendaEvent.status === "Concluído") continue;
-      if (!agendaEvent.date || !agendaEvent.time) continue;
+      if (agendaEvent.notified === true) {
+        skipped.alreadyNotified += 1;
+        continue;
+      }
+      if (agendaEvent.status === "Concluído") {
+        skipped.completed += 1;
+        continue;
+      }
+      if (!agendaEvent.date || !agendaEvent.time) {
+        skipped.missingSchedule += 1;
+        continue;
+      }
 
       const normalizedTime =
         agendaEvent.time.length === 5
@@ -147,18 +171,25 @@ exports.sendDueAgendaReminders = onSchedule(
         `${agendaEvent.date}T${normalizedTime}-03:00`
       );
 
-      if (Number.isNaN(dueAt.getTime()) || dueAt > now) continue;
+      if (Number.isNaN(dueAt.getTime())) {
+        skipped.invalidSchedule += 1;
+        continue;
+      }
+      if (dueAt > now) {
+        skipped.future += 1;
+        continue;
+      }
 
       try {
-        await firestore.runTransaction(async (transaction) => {
+        const reminderCreated = await firestore.runTransaction(async (transaction) => {
           const freshEventDoc = await transaction.get(eventDoc.ref);
 
-          if (!freshEventDoc.exists) return;
+          if (!freshEventDoc.exists) return false;
 
           const freshEvent = freshEventDoc.data();
 
-          if (freshEvent.notified === true) return;
-          if (freshEvent.status === "Concluído") return;
+          if (freshEvent.notified === true) return false;
+          if (freshEvent.status === "Concluído") return false;
 
           const creatorUserId = freshEvent.createdByUserId || "";
           const notificationRef = firestore.collection("notifications").doc();
@@ -186,7 +217,18 @@ exports.sendDueAgendaReminders = onSchedule(
             deletedBy: [],
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
+
+          return true;
         });
+
+        if (reminderCreated) {
+          remindersSent += 1;
+          logger.info("Lembrete da agenda criado:", {
+            agendaEventId: eventDoc.id,
+            scheduledFor: `${agendaEvent.date} ${agendaEvent.time}`,
+            targetUrl: `${APP_URL}/agenda`,
+          });
+        }
       } catch (error) {
         logger.error("Erro ao processar lembrete da agenda:", {
           agendaEventId: eventDoc.id,
@@ -194,5 +236,11 @@ exports.sendDueAgendaReminders = onSchedule(
         });
       }
     }
+
+    logger.info("Agenda verificada:", {
+      eventCount: snapshot.size,
+      remindersSent,
+      skipped,
+    });
   }
 );

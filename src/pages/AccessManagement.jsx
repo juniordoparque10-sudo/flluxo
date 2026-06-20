@@ -18,16 +18,58 @@ import { db } from "../firebase/config";
 
 function AccessManagement() {
   const [users, setUsers] = useState([]);
+  const [activeCollaboratorUids, setActiveCollaboratorUids] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
+    const unsubscribeCollaborators = onSnapshot(
+      collection(db, "collaborators"),
+      (snapshot) => {
+        const activeUids = snapshot.docs
+          .map((item) => ({
+            id: item.id,
+            ...item.data(),
+          }))
+          .filter(
+            (collaborator) =>
+              collaborator.deleted !== true &&
+              collaborator.active !== false &&
+              collaborator.status !== "Inativo"
+          )
+          .map((collaborator) => collaborator.uid)
+          .filter(Boolean);
+
+        setActiveCollaboratorUids(activeUids);
+      },
+      (error) => {
+        console.error("Erro ao carregar colaboradores ativos:", error);
+      }
+    );
+
+    return () => unsubscribeCollaborators();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribeUsers = onSnapshot(
       collection(db, "users"),
       (snapshot) => {
-        const list = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        }));
+        const list = snapshot.docs
+          .map((item) => ({
+            id: item.id,
+            ...item.data(),
+          }))
+          .filter((user) => {
+            const isDeleted =
+              user.deleted === true ||
+              user.active === false ||
+              user.status === "Inativo";
+
+            if (isDeleted) return false;
+
+            if (user.role === "admin") return true;
+
+            return activeCollaboratorUids.includes(user.uid || user.id);
+          });
 
         setUsers(list);
         setLoading(false);
@@ -38,14 +80,10 @@ function AccessManagement() {
       }
     );
 
-    return () => unsubscribe();
-  }, []);
+    return () => unsubscribeUsers();
+  }, [activeCollaboratorUids]);
 
-  async function togglePermission(
-    userId,
-    permission,
-    currentValue
-  ) {
+  async function togglePermission(userId, permission, currentValue) {
     try {
       const userRef = doc(db, "users", userId);
 
@@ -121,156 +159,56 @@ function AccessManagement() {
     {
       title: "Menus principais",
       permissions: [
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          description: "Acessar painel inicial",
-        },
-        {
-          key: "globalSearch",
-          label: "Pesquisa global",
-          description: "Pesquisar em todo o sistema",
-        },
-        {
-          key: "companies",
-          label: "Empresas",
-          description: "Acessar menu de empresas",
-        },
-        {
-          key: "documents",
-          label: "Documentos",
-          description: "Acessar central de documentos",
-        },
-        {
-          key: "tasks",
-          label: "Tarefas",
-          description: "Acessar central de tarefas",
-        },
-        {
-          key: "agenda",
-          label: "Agenda",
-          description: "Acessar agenda",
-        },
-        {
-          key: "quickRegister",
-          label: "Registro rápido",
-          description: "Acessar central operacional",
-        },
-        {
-          key: "collaborators",
-          label: "Colaboradores",
-          description: "Acessar equipe operacional",
-        },
-        {
-          key: "activityLogs",
-          label: "Logs de atividades",
-          description: "Visualizar auditoria do sistema",
-        },
-        {
-          key: "accessManagement",
-          label: "Gestão de acessos",
-          description: "Acessar permissões do sistema",
-        },
+        { key: "dashboard", label: "Dashboard", description: "Acessar painel inicial" },
+        { key: "globalSearch", label: "Pesquisa global", description: "Pesquisar em todo o sistema" },
+        { key: "companies", label: "Empresas", description: "Acessar menu de empresas" },
+        { key: "documents", label: "Documentos", description: "Acessar central de documentos" },
+        { key: "tasks", label: "Tarefas", description: "Acessar central de tarefas" },
+        { key: "agenda", label: "Agenda", description: "Acessar agenda" },
+        { key: "quickRegister", label: "Registro rápido", description: "Acessar central operacional" },
+        { key: "collaborators", label: "Colaboradores", description: "Acessar equipe operacional" },
+        { key: "activityLogs", label: "Logs de atividades", description: "Visualizar auditoria do sistema" },
+        { key: "accessManagement", label: "Gestão de acessos", description: "Acessar permissões do sistema" },
       ],
     },
     {
       title: "Permissões internas de empresas",
       permissions: [
-        {
-          key: "companyCreate",
-          label: "Cadastrar empresa",
-          description: "Permite criar nova empresa",
-        },
-        {
-          key: "companyEdit",
-          label: "Editar empresa",
-          description: "Permite alterar dados da empresa",
-        },
-        {
-          key: "companyDelete",
-          label: "Apagar empresa",
-          description: "Permite excluir empresas",
-        },
+        { key: "companyCreate", label: "Cadastrar empresa", description: "Permite criar nova empresa" },
+        { key: "companyEdit", label: "Editar empresa", description: "Permite alterar dados da empresa" },
+        { key: "companyDelete", label: "Apagar empresa", description: "Permite excluir empresas" },
       ],
     },
     {
       title: "Permissões internas de documentos",
       permissions: [
-        {
-          key: "documentCreate",
-          label: "Cadastrar documento",
-          description: "Permite anexar/cadastrar documentos",
-        },
-        {
-          key: "documentEdit",
-          label: "Editar documento",
-          description: "Permite alterar status/dados do documento",
-        },
-        {
-          key: "documentDelete",
-          label: "Apagar documento",
-          description: "Permite excluir documentos",
-        },
+        { key: "documentCreate", label: "Cadastrar documento", description: "Permite anexar/cadastrar documentos" },
+        { key: "documentEdit", label: "Editar documento", description: "Permite alterar status/dados do documento" },
+        { key: "documentDelete", label: "Apagar documento", description: "Permite excluir documentos" },
       ],
     },
     {
       title: "Permissões internas de tarefas",
       permissions: [
-        {
-          key: "taskCreate",
-          label: "Criar tarefa",
-          description: "Permite criar tarefas",
-        },
-        {
-          key: "taskEdit",
-          label: "Editar tarefa",
-          description: "Permite alterar tarefas",
-        },
-        {
-          key: "taskDelete",
-          label: "Apagar tarefa",
-          description: "Permite excluir tarefas",
-        },
+        { key: "taskCreate", label: "Criar tarefa", description: "Permite criar tarefas" },
+        { key: "taskEdit", label: "Editar tarefa", description: "Permite alterar tarefas" },
+        { key: "taskDelete", label: "Apagar tarefa", description: "Permite excluir tarefas" },
       ],
     },
     {
       title: "Permissões internas da agenda",
       permissions: [
-        {
-          key: "agendaCreate",
-          label: "Criar compromisso",
-          description: "Permite criar eventos na agenda",
-        },
-        {
-          key: "agendaEdit",
-          label: "Editar compromisso",
-          description: "Permite editar eventos da agenda",
-        },
-        {
-          key: "agendaDelete",
-          label: "Apagar compromisso",
-          description: "Permite excluir eventos da agenda",
-        },
+        { key: "agendaCreate", label: "Criar compromisso", description: "Permite criar eventos da agenda" },
+        { key: "agendaEdit", label: "Editar compromisso", description: "Permite editar eventos da agenda" },
+        { key: "agendaDelete", label: "Apagar compromisso", description: "Permite excluir eventos da agenda" },
       ],
     },
     {
       title: "Permissões internas da equipe",
       permissions: [
-        {
-          key: "collaboratorCreate",
-          label: "Criar colaborador",
-          description: "Permite cadastrar colaborador",
-        },
-        {
-          key: "collaboratorEdit",
-          label: "Editar colaborador",
-          description: "Permite alterar colaborador",
-        },
-        {
-          key: "collaboratorDelete",
-          label: "Apagar colaborador",
-          description: "Permite excluir colaborador",
-        },
+        { key: "collaboratorCreate", label: "Criar colaborador", description: "Permite cadastrar colaborador" },
+        { key: "collaboratorEdit", label: "Editar colaborador", description: "Permite alterar colaborador" },
+        { key: "collaboratorDelete", label: "Apagar colaborador", description: "Permite excluir colaborador" },
       ],
     },
   ];
@@ -319,28 +257,18 @@ function AccessManagement() {
 
       <div className="bg-white rounded-2xl shadow border border-purple-100 p-6">
         {loading ? (
-          <p className="text-slate-500">
-            Carregando usuários...
-          </p>
+          <p className="text-slate-500">Carregando usuários...</p>
         ) : users.length === 0 ? (
-          <p className="text-slate-500">
-            Nenhum usuário encontrado.
-          </p>
+          <p className="text-slate-500">Nenhum usuário ativo encontrado.</p>
         ) : (
           <div className="space-y-8">
             {users.map((user, index) => (
               <div
                 key={user.id}
-                className={`rounded-3xl p-[2px] shadow-lg bg-gradient-to-r ${getUserGradient(
-                  index
-                )}`}
+                className={`rounded-3xl p-[2px] shadow-lg bg-gradient-to-r ${getUserGradient(index)}`}
               >
                 <div className="bg-white rounded-3xl overflow-hidden">
-                  <div
-                    className={`p-6 border-b border-purple-100 ${getUserBackground(
-                      index
-                    )}`}
-                  >
+                  <div className={`p-6 border-b border-purple-100 ${getUserBackground(index)}`}>
                     <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
                       <div className="flex items-center gap-4">
                         {user.photoURL ? (
@@ -351,10 +279,7 @@ function AccessManagement() {
                           />
                         ) : (
                           <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow">
-                            <UserCircle2
-                              size={34}
-                              className="text-fuchsia-600"
-                            />
+                            <UserCircle2 size={34} className="text-fuchsia-600" />
                           </div>
                         )}
 
@@ -375,9 +300,11 @@ function AccessManagement() {
                                   : "bg-slate-200 text-slate-700"
                               }`}
                             >
-                              {user.role === "admin"
-                                ? "Administrador"
-                                : "Colaborador"}
+                              {user.role === "admin" ? "Administrador" : "Colaborador"}
+                            </span>
+
+                            <span className="px-4 py-1 rounded-full text-xs font-bold bg-white text-emerald-600 border border-emerald-100">
+                              Ativo
                             </span>
 
                             <span className="px-4 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-purple-100">
@@ -390,21 +317,11 @@ function AccessManagement() {
                       <div className="flex items-center gap-3">
                         <select
                           value={user.role || "collaborator"}
-                          onChange={(e) =>
-                            changeRole(
-                              user.id,
-                              e.target.value
-                            )
-                          }
+                          onChange={(e) => changeRole(user.id, e.target.value)}
                           className="bg-white border border-purple-200 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-fuchsia-500"
                         >
-                          <option value="admin">
-                            Administrador
-                          </option>
-
-                          <option value="collaborator">
-                            Colaborador
-                          </option>
+                          <option value="admin">Administrador</option>
+                          <option value="collaborator">Colaborador</option>
                         </select>
                       </div>
                     </div>
@@ -440,15 +357,11 @@ function AccessManagement() {
                                   togglePermission(
                                     user.id,
                                     permission.key,
-                                    user.permissions?.[
-                                      permission.key
-                                    ]
+                                    user.permissions?.[permission.key]
                                   )
                                 }
                                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${
-                                  user.permissions?.[
-                                    permission.key
-                                  ]
+                                  user.permissions?.[permission.key]
                                     ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                                 } ${
@@ -457,9 +370,7 @@ function AccessManagement() {
                                     : ""
                                 }`}
                               >
-                                {user.permissions?.[
-                                  permission.key
-                                ]
+                                {user.permissions?.[permission.key]
                                   ? "Permitido"
                                   : "Bloqueado"}
                               </button>
